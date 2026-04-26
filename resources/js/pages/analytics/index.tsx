@@ -109,6 +109,7 @@ function DualLineChart({ series }: { series: SeriesPoint[] }) {
 // Thin horizontal bar chart
 function BarRow({ label, value, max, index }: { label: string; value: number; max: number; index: number }) {
     const pct = max > 0 ? (value / max) * 100 : 0;
+
     return (
         <motion.div
             initial={{ opacity: 0, x: -8 }}
@@ -140,6 +141,7 @@ export default function AnalyticsIndex({ series, leaderboard, algorithms, totals
 }) {
     const peak = useMemo(() => {
         const top = [...series].sort((a, b) => b.routes - a.routes)[0];
+
         return top?.routes > 0 ? top : null;
     }, [series]);
 

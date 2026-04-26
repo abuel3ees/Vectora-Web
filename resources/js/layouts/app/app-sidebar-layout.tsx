@@ -25,15 +25,16 @@ const registers: NavEntry[] = [
     { numeral: 'iii.', label: 'People',       href: '/users' },
     { numeral: 'iv.',  label: 'Routes',       href: '/routes' },
     { numeral: 'v.',   label: 'Fleet',        href: '/fleet' },
-    { numeral: 'vi.',  label: 'Analytics',    href: '/analytics' },
-    { numeral: 'vii.', label: 'Presentation', href: '/presentation', italic: true },
+    { numeral: 'vi.',  label: 'Delivery Proofs', href: '/delivery-proofs' },
+    { numeral: 'vii.',  label: 'Analytics',    href: '/analytics' },
+    { numeral: 'viii.', label: 'Presentation', href: '/presentation', italic: true },
 ];
 
 function NavItem({ entry, active }: { entry: NavEntry; active: boolean }) {
     return (
         <Link
             href={entry.href}
-            prefetch
+            prefetch={!active}
             className={cn(
                 'group relative flex items-baseline gap-4 py-2.5 transition-colors',
                 entry.nested ? 'pl-12 pr-3' : 'pl-5 pr-3',

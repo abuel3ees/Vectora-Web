@@ -35,6 +35,7 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
                     <nav className="flex flex-row flex-wrap lg:flex-col gap-1">
                         {sidebarNavItems.map((item, i) => {
                             const active = isCurrentOrParentUrl(item.href);
+
                             return (
                                 <Link
                                     key={`${toUrl(item.href)}-${i}`}

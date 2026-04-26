@@ -1,249 +1,239 @@
-import { Layers } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { Layers } from 'lucide-react'
+import mapboxgl from 'mapbox-gl'
+import 'mapbox-gl/dist/mapbox-gl.css'
+import { useEffect, useRef, useState } from 'react'
 
-interface Vehicle {
-  id: number
-  x: number
-  y: number
-  targetX: number
-  targetY: number
-  status: "active" | "idle" | "returning"
-  route: { x: number; y: number }[]
-  routeIndex: number
+type LiveLocation = {
+  assignment_id: number | null
+  driver_id: number | null
+  driver_name: string
+  vehicle_label: string
+  status: string
+  color: string | null
+  lat: number
+  lng: number
+  accuracy: number | null
+  speed: number | null
+  heading: number | null
+  recorded_at: string | null
 }
 
-export function LiveMap() {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [, setVehicles] = useState<Vehicle[]>([])
+type Props = {
+  mapboxToken: string | null
+  initialLocations: LiveLocation[]
+  selectedDriverId: number | null
+}
+
+export function LiveMap({ mapboxToken, initialLocations, selectedDriverId }: Props) {
+  const mapContainerRef = useRef<HTMLDivElement | null>(null)
+  const mapRef = useRef<mapboxgl.Map | null>(null)
+  const markersRef = useRef<Map<string, mapboxgl.Marker>>(new Map())
+  const initialFitDoneRef = useRef(false)
+  const initialCenterRef = useRef<LiveLocation | undefined>(initialLocations[0])
+  const [locations, setLocations] = useState<LiveLocation[]>(initialLocations)
+  const [lastSync, setLastSync] = useState<Date | null>(new Date())
+
+  const lastSyncLabel = lastSync ? `${lastSync.toISOString().slice(11, 19)} UTC` : 'waiting'
 
   useEffect(() => {
-    const canvas = canvasRef.current
+    setLocations(initialLocations)
+  }, [initialLocations])
 
-    if (!canvas) {
-return
-}
+  useEffect(() => {
+    let cancelled = false
 
-    const ctx = canvas.getContext("2d")
-
-    if (!ctx) {
-return
-}
-
-    const resizeCanvas = () => {
-      const rect = canvas.parentElement?.getBoundingClientRect()
-
-      if (rect) {
-        canvas.width = rect.width
-        canvas.height = rect.height
-      }
-    }
-
-    resizeCanvas()
-    window.addEventListener("resize", resizeCanvas)
-
-    // Initialize vehicles with routes
-    const initialVehicles: Vehicle[] = Array.from({ length: 8 }, (_, i) => {
-      const route = generateRoute(canvas.width, canvas.height)
-
-      return {
-        id: i,
-        x: route[0].x,
-        y: route[0].y,
-        targetX: route[1].x,
-        targetY: route[1].y,
-        status: i < 6 ? "active" : i < 7 ? "returning" : "idle",
-        route,
-        routeIndex: 0,
-      }
-    })
-
-    setVehicles(initialVehicles)
-
-    function generateRoute(width: number, height: number) {
-      const points = []
-      const numPoints = 4 + Math.floor(Math.random() * 3)
-      const padding = 50
-
-      for (let i = 0; i < numPoints; i++) {
-        points.push({
-          x: padding + Math.random() * (width - padding * 2),
-          y: padding + Math.random() * (height - padding * 2),
+    const poll = async () => {
+      try {
+        const res = await fetch('/dashboard/live-locations', {
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' },
         })
-      }
+        const json = await res.json()
 
-      return points
+        if (!cancelled && res.ok && json?.ok && Array.isArray(json.locations)) {
+          setLocations(json.locations as LiveLocation[])
+          setLastSync(new Date())
+        }
+      } catch {
+        // Silent fail: keep previous map data until next poll.
+      }
     }
 
-    let animationId: number
+    poll()
+    const timer = window.setInterval(poll, 2000)
 
-    const animate = () => {
-      if (!canvas || !ctx) {
-return
-}
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-      // Draw grid
-      ctx.strokeStyle = "oklch(0.25 0.02 250 / 0.2)"
-      ctx.lineWidth = 1
-      const gridSize = 40
-
-      for (let x = 0; x < canvas.width; x += gridSize) {
-        ctx.beginPath()
-        ctx.moveTo(x, 0)
-        ctx.lineTo(x, canvas.height)
-        ctx.stroke()
-      }
-
-      for (let y = 0; y < canvas.height; y += gridSize) {
-        ctx.beginPath()
-        ctx.moveTo(0, y)
-        ctx.lineTo(canvas.width, y)
-        ctx.stroke()
-      }
-
-      // Update and draw vehicles
-      setVehicles((prevVehicles) =>
-        prevVehicles.map((vehicle) => {
-          if (vehicle.status === "idle") {
-            // Draw idle vehicle
-            drawVehicle(ctx, vehicle)
-
-            return vehicle
-          }
-
-          // Move towards target
-          const dx = vehicle.targetX - vehicle.x
-          const dy = vehicle.targetY - vehicle.y
-          const dist = Math.sqrt(dx * dx + dy * dy)
-
-          if (dist < 2) {
-            // Reached target, move to next point in route
-            const nextIndex = (vehicle.routeIndex + 1) % vehicle.route.length
-
-            return {
-              ...vehicle,
-              routeIndex: nextIndex,
-              targetX: vehicle.route[nextIndex].x,
-              targetY: vehicle.route[nextIndex].y,
-            }
-          }
-
-          const speed = 0.5
-          const newX = vehicle.x + (dx / dist) * speed
-          const newY = vehicle.y + (dy / dist) * speed
-
-          const updatedVehicle = { ...vehicle, x: newX, y: newY }
-          
-          // Draw route trail
-          drawRouteTrail(ctx, vehicle)
-          // Draw vehicle
-          drawVehicle(ctx, updatedVehicle)
-
-          return updatedVehicle
-        })
-      )
-
-      animationId = requestAnimationFrame(animate)
+    const handleFocus = () => {
+      void poll()
     }
 
-    function drawRouteTrail(ctx: CanvasRenderingContext2D, vehicle: Vehicle) {
-      const route = vehicle.route
-      ctx.beginPath()
-      ctx.moveTo(route[0].x, route[0].y)
-      
-      for (let i = 1; i < route.length; i++) {
-        ctx.lineTo(route[i].x, route[i].y)
-      }
-      
-      ctx.strokeStyle =
-        vehicle.status === "active"
-          ? "oklch(0.72 0.18 35 / 0.3)"
-          : vehicle.status === "returning"
-          ? "oklch(0.65 0.15 200 / 0.3)"
-          : "oklch(0.5 0 0 / 0.2)"
-      ctx.lineWidth = 2
-      ctx.setLineDash([5, 5])
-      ctx.stroke()
-      ctx.setLineDash([])
-
-      // Draw stops
-      route.forEach((point, i) => {
-        ctx.beginPath()
-        ctx.arc(point.x, point.y, 4, 0, Math.PI * 2)
-        ctx.fillStyle = i <= vehicle.routeIndex ? "oklch(0.72 0.18 35)" : "oklch(0.4 0 0)"
-        ctx.fill()
-      })
-    }
-
-    function drawVehicle(ctx: CanvasRenderingContext2D, vehicle: Vehicle) {
-      const color =
-        vehicle.status === "active"
-          ? "oklch(0.72 0.18 35)"
-          : vehicle.status === "returning"
-          ? "oklch(0.65 0.15 200)"
-          : "oklch(0.5 0 0)"
-
-      // Glow
-      const gradient = ctx.createRadialGradient(
-        vehicle.x,
-        vehicle.y,
-        0,
-        vehicle.x,
-        vehicle.y,
-        20
-      )
-      gradient.addColorStop(0, color.replace(")", " / 0.4)").replace("oklch", "oklch"))
-      gradient.addColorStop(1, "transparent")
-      ctx.beginPath()
-      ctx.arc(vehicle.x, vehicle.y, 20, 0, Math.PI * 2)
-      ctx.fillStyle = gradient
-      ctx.fill()
-
-      // Vehicle dot
-      ctx.beginPath()
-      ctx.arc(vehicle.x, vehicle.y, 6, 0, Math.PI * 2)
-      ctx.fillStyle = color
-      ctx.fill()
-      ctx.strokeStyle = "oklch(0.98 0 0)"
-      ctx.lineWidth = 2
-      ctx.stroke()
-    }
-
-    animate()
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleFocus)
 
     return () => {
-      window.removeEventListener("resize", resizeCanvas)
-      cancelAnimationFrame(animationId)
+      cancelled = true
+      window.clearInterval(timer)
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleFocus)
     }
   }, [])
+
+  useEffect(() => {
+    if (!mapContainerRef.current || mapRef.current || !mapboxToken) {
+      return
+    }
+
+    mapboxgl.accessToken = mapboxToken
+    const seed = initialCenterRef.current
+
+    mapRef.current = new mapboxgl.Map({
+      container: mapContainerRef.current,
+      style: 'mapbox://styles/mapbox/dark-v11',
+      center: seed ? [seed.lng, seed.lat] : [10.0, 52.0],
+      zoom: seed ? 12 : 2,
+      attributionControl: false,
+    })
+
+    mapRef.current.addControl(new mapboxgl.NavigationControl({ showCompass: true }), 'top-right')
+
+    const markers = markersRef.current
+
+    return () => {
+      markers.forEach((marker) => marker.remove())
+      markers.clear()
+      initialFitDoneRef.current = false
+      mapRef.current?.remove()
+      mapRef.current = null
+    }
+  }, [mapboxToken])
+
+  useEffect(() => {
+    if (!mapRef.current) {
+      return
+    }
+
+    if (locations.length === 0) {
+      return
+    }
+
+    const bounds = new mapboxgl.LngLatBounds()
+    const seenKeys = new Set<string>()
+
+    locations.forEach((loc) => {
+      const key = String(loc.assignment_id ?? loc.driver_id ?? loc.vehicle_label)
+      seenKeys.add(key)
+
+      let marker = markersRef.current.get(key)
+
+      if (!marker) {
+        const el = document.createElement('div')
+        el.className = 'h-3 w-3 rounded-full border-2 border-white shadow-[0_0_0_4px_rgba(0,0,0,0.2)]'
+        el.style.background = loc.color ?? 'oklch(0.72 0.18 35)'
+        el.style.transition = 'transform 1200ms linear, background-color 200ms linear, opacity 200ms linear'
+        el.style.willChange = 'transform'
+
+        marker = new mapboxgl.Marker({ element: el, rotationAlignment: 'map' })
+          .setLngLat([loc.lng, loc.lat])
+          .setPopup(
+            new mapboxgl.Popup({ offset: 20 }).setHTML(
+              `<div style="font-size:12px;line-height:1.4;min-width:180px;">
+                <strong>${loc.driver_name}</strong><br />
+                ${loc.vehicle_label} · ${loc.status}<br />
+                ${loc.speed != null ? `Speed: ${loc.speed.toFixed(1)} m/s<br />` : ''}
+                ${loc.accuracy != null ? `Accuracy: ${loc.accuracy.toFixed(0)} m` : ''}
+              </div>`,
+            ),
+          )
+          .addTo(mapRef.current!)
+
+        markersRef.current.set(key, marker)
+      }
+
+      const element = marker.getElement() as HTMLDivElement
+      element.style.background = loc.color ?? 'oklch(0.72 0.18 35)'
+      element.style.transformOrigin = 'center center'
+      marker.setLngLat([loc.lng, loc.lat])
+      bounds.extend([loc.lng, loc.lat])
+    })
+
+    for (const [key, marker] of markersRef.current.entries()) {
+      if (!seenKeys.has(key)) {
+        marker.remove()
+        markersRef.current.delete(key)
+      }
+    }
+
+    if (!initialFitDoneRef.current && !bounds.isEmpty()) {
+      mapRef.current.fitBounds(bounds, { padding: 70, maxZoom: 14, duration: 700 })
+      initialFitDoneRef.current = true
+    }
+  }, [locations])
+
+  useEffect(() => {
+    if (!mapRef.current || selectedDriverId == null) {
+      return
+    }
+
+    const selected = locations.find((loc) => loc.driver_id === selectedDriverId)
+    if (!selected) {
+      return
+    }
+
+    const key = String(selected.assignment_id ?? selected.driver_id ?? selected.vehicle_label)
+    const marker = markersRef.current.get(key)
+    if (!marker) {
+      return
+    }
+
+    markersRef.current.forEach((entry) => {
+      const el = entry.getElement() as HTMLDivElement
+      el.style.width = '12px'
+      el.style.height = '12px'
+      el.style.boxShadow = '0 0 0 4px rgba(0,0,0,0.2)'
+      el.style.zIndex = '10'
+    })
+
+    const element = marker.getElement() as HTMLDivElement
+    element.style.width = '18px'
+    element.style.height = '18px'
+    element.style.boxShadow = '0 0 0 8px rgba(224, 123, 83, 0.18), 0 0 20px rgba(224, 123, 83, 0.55)'
+    element.style.zIndex = '20'
+
+    mapRef.current.easeTo({
+      center: [selected.lng, selected.lat],
+      zoom: 14,
+      duration: 800,
+      essential: true,
+    })
+
+    markersRef.current.forEach((entry) => {
+      entry.getPopup()?.remove()
+    })
+    marker.getPopup()?.addTo(mapRef.current)
+  }, [locations, selectedDriverId])
 
   return (
     <div className="h-full bg-background">
       <div className="flex items-center justify-between border-b border-border/60 px-6 py-4">
         <div>
-          <div className="text-[9px] uppercase tracking-[0.35em] text-muted-foreground mb-1">Live</div>
+          <div className="mb-1 text-[9px] uppercase tracking-[0.35em] text-muted-foreground">Live</div>
           <h3 className="font-display text-base tracking-tight text-foreground">Fleet in motion</h3>
         </div>
-        <button className="p-1.5 text-muted-foreground/40 hover:text-muted-foreground transition-colors">
+        <button className="p-1.5 text-muted-foreground/40 hover:text-muted-foreground transition-colors" type="button">
           <Layers className="h-3.5 w-3.5" />
         </button>
       </div>
-      <div className="relative h-80">
-        <canvas ref={canvasRef} className="h-full w-full" />
 
-        {/* Legend */}
-        <div className="absolute bottom-4 left-4 flex gap-5 border border-border/40 bg-background/80 backdrop-blur-sm px-3 py-2">
-          {[
-            { label: 'Active',    color: 'bg-primary' },
-            { label: 'Returning', color: 'bg-[oklch(0.65_0.15_200)]' },
-            { label: 'Idle',      color: 'bg-muted-foreground/40' },
-          ].map(({ label, color }) => (
-            <div key={label} className="flex items-center gap-1.5">
-              <span className={`h-1.5 w-1.5 rounded-full ${color}`} />
-              <span className="text-[9px] uppercase tracking-[0.3em] text-muted-foreground/60">{label}</span>
-            </div>
-          ))}
+      <div className="relative h-80">
+        {mapboxToken ? (
+          <div ref={mapContainerRef} className="h-full w-full" />
+        ) : (
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+            Missing Mapbox token.
+          </div>
+        )}
+
+        <div className="absolute bottom-4 left-4 border border-border/40 bg-background/80 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-muted-foreground backdrop-blur-sm">
+          {locations.length} marker{locations.length === 1 ? '' : 's'} · synced {lastSyncLabel}
         </div>
       </div>
     </div>

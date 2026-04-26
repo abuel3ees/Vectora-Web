@@ -20,6 +20,7 @@ export default function AppearanceTabs({
         <div className={cn('flex flex-col gap-2', className)} {...props}>
             {tabs.map(({ value, label, mark }) => {
                 const active = appearance === value;
+
                 return (
                     <button
                         key={value}

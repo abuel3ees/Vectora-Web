@@ -11,7 +11,9 @@ import { RecentActivity } from '@/components/dashboard/recent-activity'
 import type { Activity } from '@/components/dashboard/recent-activity'
 import { StatsCards } from '@/components/dashboard/stats-cards'
 import type { Stat } from '@/components/dashboard/stats-cards'
+import { DriverStatsCard } from '@/components/dashboard/driver-stats-card'
 import AppLayout from '@/layouts/app/app-sidebar-layout'
+import { useEffect, useState } from 'react'
 
 function todayLabel() {
   return new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
@@ -41,9 +43,32 @@ type Props = {
   fleet: FleetRow[]
   recent: Activity[]
   series: SeriesPoint[]
+  mapboxToken: string | null
+  liveLocations: {
+    assignment_id: number | null
+    driver_id: number | null
+    driver_name: string
+    vehicle_label: string
+    status: string
+    color: string | null
+    lat: number
+    lng: number
+    accuracy: number | null
+    speed: number | null
+    heading: number | null
+    recorded_at: string | null
+  }[]
 }
 
-export default function DashboardPage({ stats, activeRoutes, fleet, recent, series }: Props) {
+export default function DashboardPage({ stats, activeRoutes, fleet, recent, series, mapboxToken, liveLocations }: Props) {
+  const [selectedDriverId, setSelectedDriverId] = useState<number | null>(liveLocations[0]?.driver_id ?? null)
+
+  useEffect(() => {
+    if (selectedDriverId == null && liveLocations[0]?.driver_id != null) {
+      setSelectedDriverId(liveLocations[0].driver_id)
+    }
+  }, [liveLocations, selectedDriverId])
+
   return (
     <AppLayout>
       <Head title="Dashboard" />
@@ -93,16 +118,29 @@ export default function DashboardPage({ stats, activeRoutes, fleet, recent, seri
       <motion.section
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.15 }}
+        className="px-8 md:px-12"
+      >
+        <DriverStatsCard />
+      </motion.section>
+
+      <motion.section
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.2 }}
         className="px-8 md:px-12"
       >
         <SectionHead eyebrow="Chapter I" title="Fleet in motion" note="Positions updating continuously" />
         <div className="grid gap-px bg-border/60 rounded-2xl overflow-hidden border border-border/60 lg:grid-cols-3">
           <div className="lg:col-span-2 bg-background">
-            <LiveMap />
+            <LiveMap mapboxToken={mapboxToken} initialLocations={liveLocations} selectedDriverId={selectedDriverId} />
           </div>
           <div className="bg-background">
-            <FleetStatus fleet={fleet} />
+            <FleetStatus
+              fleet={fleet}
+              selectedDriverId={selectedDriverId}
+              onSelectDriver={setSelectedDriverId}
+            />
           </div>
         </div>
       </motion.section>

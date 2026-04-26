@@ -1,9 +1,9 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import { motion } from 'framer-motion';
 import { ArrowLeft } from 'lucide-react';
-import AppLayout from '@/layouts/app/app-sidebar-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import AppLayout from '@/layouts/app/app-sidebar-layout';
 import { cn } from '@/lib/utils';
 import type { Role } from '@/types';
 

@@ -104,6 +104,17 @@ class OptimizeController extends Controller
 
         if ($outText !== '') {
             $decoded = json_decode($outText, true);
+
+            // If straight decode fails the output file may have debug text prepended
+            // (e.g. QAOA progress lines written to stdout before the JSON result).
+            // Find the first '{' and retry from there.
+            if (! is_array($decoded)) {
+                $jsonStart = strpos($outText, '{');
+                if ($jsonStart !== false) {
+                    $decoded = json_decode(substr($outText, $jsonStart), true);
+                }
+            }
+
             if (is_array($decoded)) {
                 // Save to optimization history
                 $input = is_file($inPath) ? json_decode(file_get_contents($inPath), true) : [];

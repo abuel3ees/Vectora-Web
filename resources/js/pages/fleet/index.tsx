@@ -67,9 +67,18 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 function statusColor(status: string) {
-    if (status === 'in_progress') return 'text-primary';
-    if (status === 'accepted')    return 'text-primary/70';
-    if (status === 'pending')     return 'text-muted-foreground/80';
+    if (status === 'in_progress') {
+return 'text-primary';
+}
+
+    if (status === 'accepted')    {
+return 'text-primary/70';
+}
+
+    if (status === 'pending')     {
+return 'text-muted-foreground/80';
+}
+
     return 'text-muted-foreground/40';
 }
 

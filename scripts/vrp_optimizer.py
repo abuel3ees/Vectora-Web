@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import itertools
 import math
+import sys
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -432,7 +433,8 @@ def solve_brute_force(
         QAOA_STATS["fallback"] += 1
         print(
             f"{_PREFIX} *** FALLBACK #{QAOA_STATS['fallback']} to classical"
-            + (f" -- {reason}" if reason else "")
+            + (f" -- {reason}" if reason else ""),
+            file=sys.stderr,
         )
         if eff_k == 1:
             best_dist = float("inf")
@@ -504,7 +506,7 @@ def solve_brute_force(
         from qiskit_optimization import QuadraticProgram as _QP
         from qiskit_optimization.converters import QuadraticProgramToQubo as _QP2Q
 
-        print(f"{_PREFIX} qiskit imports OK -- entering QAOA path")
+        print(f"{_PREFIX} qiskit imports OK -- entering QAOA path", file=sys.stderr)
     except ImportError as exc:
         return _classical_fallback(f"qiskit not installed: {exc}")
 
@@ -599,7 +601,8 @@ def solve_brute_force(
     qubo = _QP2Q(penalty=penalty).convert(qp)
     print(
         f"{_PREFIX} QUBO built -- {len(qubo.variables)} qubits, "
-        f"penalty={penalty:.4f}, mode={'open-path' if open_path else 'closed-tour'}"
+        f"penalty={penalty:.4f}, mode={'open-path' if open_path else 'closed-tour'}",
+        file=sys.stderr,
     )
 
     var_names = [v.name for v in qubo.variables]
@@ -813,7 +816,8 @@ def solve_brute_force(
         n_restarts = cfg["restarts"]
         print(
             f"{_PREFIX} config {ci}/5 -- reps={reps} {opt_name}"
-            f" maxiter={maxiter} restarts={n_restarts}"
+            f" maxiter={maxiter} restarts={n_restarts}",
+            file=sys.stderr,
         )
         ansatz = _QAOAAnsatz(ising_n, reps=reps)
         tqc    = _transpile(ansatz, backend=backend_sv, optimization_level=3)
@@ -834,7 +838,7 @@ def solve_brute_force(
             res = opt.minimize(fun=_energy, x0=x0)
             if best_res is None or res.fun < best_res.fun:
                 best_res = res
-        print(f"{_PREFIX}   energy={best_res.fun:.6f}")
+        print(f"{_PREFIX}   energy={best_res.fun:.6f}", file=sys.stderr)
 
         circ = tqc.copy()
         if not circ.cregs:
@@ -843,7 +847,7 @@ def solve_brute_force(
         counts = backend_sv.run(bound, shots=_SHOTS).result().get_counts()
         cost, edges, valid_frac = _decode_counts(counts)
         status = f"cost={cost:.4f}" if cost < float("inf") else "NO feasible solution"
-        print(f"{_PREFIX}   valid%={valid_frac:.4%}  {status}")
+        print(f"{_PREFIX}   valid%={valid_frac:.4%}  {status}", file=sys.stderr)
         all_results.append((cost, edges))
 
     best_cost, best_edges = min(all_results, key=lambda t: t[0])
@@ -856,7 +860,8 @@ def solve_brute_force(
     QAOA_STATS["success"] += 1
     print(
         f"{_PREFIX} QAOA SUCCESS #{QAOA_STATS['success']} -- "
-        f"best cost={best_cost:.4f}  routes={len(routes_ids)}"
+        f"best cost={best_cost:.4f}  routes={len(routes_ids)}",
+        file=sys.stderr,
     )
     _sol = VRPSolution(
         routes=[
@@ -952,7 +957,8 @@ def merge_super_solution(
         if not valid_cis:
             print(
                 f"WARNING merge_super_solution: super-route {sr.node_ids} has "
-                "no valid cluster indices -- skipping"
+                "no valid cluster indices -- skipping",
+                file=sys.stderr,
             )
             continue
 
@@ -1006,7 +1012,8 @@ def merge_super_solution(
     if len(merged) != expected_k:
         print(
             f"WARNING merge_super_solution: produced {len(merged)} routes, "
-            f"expected {expected_k} -- re-grouping"
+            f"expected {expected_k} -- re-grouping",
+            file=sys.stderr,
         )
         nm_msol = {nd.id: nd for cl in clusters for nd in cl}
         while len(merged) > expected_k:

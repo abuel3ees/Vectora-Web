@@ -1,4 +1,4 @@
-import { Head } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -33,7 +33,14 @@ type SolveResult = {
     summary: Summary;
     bbox: { south: number; north: number; east: number; west: number };
     depot_id: number;
-    nodes: { id: number; lat: number; lng: number; is_depot: boolean }[];
+    nodes: {
+        id: number;
+        lat: number;
+        lng: number;
+        snapped_lat: number | null;
+        snapped_lng: number | null;
+        is_depot: boolean;
+    }[];
     routes: RouteOut[];
 };
 
@@ -88,7 +95,10 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
         let cancelled = false;
 
         const tick = async () => {
-            if (cancelled) return;
+            if (cancelled) {
+return;
+}
+
             try {
                 const res = await fetch(`/optimize/solve/${jobId}`, {
                     credentials: 'same-origin',
@@ -105,14 +115,19 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
                 }
 
                 if (json.status === 'done') {
+                    console.info('[optimize] solve done — routes:', json.result?.routes?.length, 'setting result + collapsing config');
                     setResult(json.result as SolveResult);
                     setLoading(false);
                     setProgress(null);
+                    setConfigOpen(false);
 
                     return;
                 }
 
-                if (json.progress) setProgress(json.progress);
+                if (json.progress) {
+setProgress(json.progress);
+}
+
                 setTimeout(tick, 2000);
             } catch (e) {
                 setError(e instanceof Error ? e.message : String(e));
@@ -122,7 +137,9 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
 
         tick();
 
-        return () => { cancelled = true; };
+        return () => {
+ cancelled = true; 
+};
     };
 
     const submit = async () => {
@@ -130,6 +147,7 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
         setError(null);
         setProgress(null);
         setResult(null);
+
         try {
             const res = await fetch('/optimize/solve', {
                 method: 'POST',
@@ -150,6 +168,7 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
 
                 return;
             }
+
             pollJob(json.job_id);
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : String(e));
@@ -168,7 +187,9 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
         const results: Record<string, SolveResult | null> = {};
 
         for (let i = 0; i < algoList.length; i++) {
-            if (comparisonAbortRef.current) break;
+            if (comparisonAbortRef.current) {
+break;
+}
 
             const algo = algoList[i];
             setComparisonProgress(`Running ${algorithms[algo as keyof typeof algorithms]} (${i + 1}/${algoList.length})...`);
@@ -231,7 +252,10 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
     };
 
     const autoDispatch = () => {
-        if (!result || drivers.length === 0) return;
+        if (!result || drivers.length === 0) {
+return;
+}
+
         const next: Record<number, number | ''> = {};
 
         result.routes.forEach((r, i) => {
@@ -282,6 +306,7 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
             if ((e as unknown as { tile?: unknown }).tile || /Load failed|Failed to fetch|NetworkError/i.test(msg)) {
                 return;
             }
+
             console.error('[mapbox]', msg, e);
             setError((prev) => prev ?? `Mapbox: ${msg}`);
         });
@@ -303,27 +328,44 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
             // Land — almost-black with faint warm undertone (aged vellum in darkness)
             for (const id of ['land', 'land-structure', 'national-park', 'landuse']) {
                 if (map.getLayer(id)) {
-                    try { map.setPaintProperty(id, 'background-color', '#0b0b10'); } catch { /* */ }
-                    try { map.setPaintProperty(id, 'fill-color', '#0b0b10'); } catch { /* */ }
+                    try {
+ map.setPaintProperty(id, 'background-color', '#0b0b10'); 
+} catch { /* */ }
+
+                    try {
+ map.setPaintProperty(id, 'fill-color', '#0b0b10'); 
+} catch { /* */ }
                 }
             }
+
             // Water — deep inky blue-black
             for (const id of ['water', 'water-shadow']) {
                 if (map.getLayer(id)) {
-                    try { map.setPaintProperty(id, 'fill-color', '#08080f'); } catch { /* */ }
+                    try {
+ map.setPaintProperty(id, 'fill-color', '#08080f'); 
+} catch { /* */ }
                 }
             }
+
             // Roads — very faint, barely perceptible hairlines
             for (const id of map.getStyle()?.layers?.map(l => l.id) ?? []) {
                 if (/road|street|tunnel|bridge|motorway|path|pedestrian/.test(id)) {
-                    try { map.setPaintProperty(id, 'line-color', '#1e1e2e'); } catch { /* */ }
-                    try { map.setPaintProperty(id, 'line-opacity', 0.45); } catch { /* */ }
+                    try {
+ map.setPaintProperty(id, 'line-color', '#1e1e2e'); 
+} catch { /* */ }
+
+                    try {
+ map.setPaintProperty(id, 'line-opacity', 0.45); 
+} catch { /* */ }
                 }
             }
+
             // Admin boundaries — off completely
             for (const id of map.getStyle()?.layers?.map(l => l.id) ?? []) {
                 if (/admin|boundary/.test(id)) {
-                    try { map.setLayoutProperty(id, 'visibility', 'none'); } catch { /* */ }
+                    try {
+ map.setLayoutProperty(id, 'visibility', 'none'); 
+} catch { /* */ }
                 }
             }
 
@@ -354,7 +396,11 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
             let bearing = 0;
             const rotateGlobe = () => {
                 bearing = (bearing + 0.06) % 360;
-                if (map.getZoom() < 4) map.setBearing(bearing);
+
+                if (map.getZoom() < 4) {
+map.setBearing(bearing);
+}
+
                 globeRotateRef.current = requestAnimationFrame(rotateGlobe);
             };
             globeRotateRef.current = requestAnimationFrame(rotateGlobe);
@@ -376,6 +422,7 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
                 cancelAnimationFrame(globeRotateRef.current);
                 globeRotateRef.current = null;
             }
+
             ro.disconnect();
             map.remove();
             mapRef.current = null;
@@ -383,15 +430,24 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
     }, [mapboxToken]);
 
     useEffect(() => {
-        const map = mapRef.current;
-        if (!map || !result) return;
+        if (!result) {
+            return;
+        }
 
-        // Stop globe rotation + collapse config panel when result arrives.
+        // Collapse config panel as soon as result arrives — independent of map readiness.
+        setConfigOpen(false);
+
+        const map = mapRef.current;
+
+        if (!map) {
+            return;
+        }
+
+        // Stop globe rotation when result arrives.
         if (globeRotateRef.current !== null) {
             cancelAnimationFrame(globeRotateRef.current);
             globeRotateRef.current = null;
         }
-        setConfigOpen(false);
 
         const applyLayers = () => {
             if (dashAnimRef.current !== null) {
@@ -404,18 +460,26 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
                 revealAnimRef.current = null;
             }
 
-            for (const m of markersRef.current) m.remove();
+            for (const m of markersRef.current) {
+m.remove();
+}
+
             markersRef.current = [];
 
             for (const r of result.routes) {
                 for (const suffix of ['glow', 'main', 'flow']) {
                     const id = `route-${r.route_index}-${suffix}`;
 
-                    if (map.getLayer(id)) map.removeLayer(id);
+                    if (map.getLayer(id)) {
+map.removeLayer(id);
+}
                 }
+
                 const src = `route-${r.route_index}`;
 
-                if (map.getSource(src)) map.removeSource(src);
+                if (map.getSource(src)) {
+map.removeSource(src);
+}
             }
 
             // --- layers: glow casing → crisp main → animated flow on top ---
@@ -518,7 +582,10 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
                 for (const r of result.routes) {
                     const id = `route-${r.route_index}-main`;
 
-                    if (!map.getLayer(id)) continue;
+                    if (!map.getLayer(id)) {
+continue;
+}
+
                     map.setPaintProperty(id, 'line-gradient', [
                         'step', ['line-progress'],
                         r.color, eased, 'rgba(0,0,0,0)',
@@ -549,7 +616,10 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
                 for (const r of result.routes) {
                     const id = `route-${r.route_index}-flow`;
 
-                    if (!map.getLayer(id)) continue;
+                    if (!map.getLayer(id)) {
+continue;
+}
+
                     map.setPaintProperty(id, 'line-dasharray', [a, b2]);
                 }
 
@@ -559,12 +629,21 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
             dashAnimRef.current = requestAnimationFrame(flow);
         };
 
-        if (map.isStyleLoaded()) applyLayers();
-        else map.once('load', applyLayers);
+        if (map.isStyleLoaded()) {
+applyLayers();
+} else {
+map.once('load', applyLayers);
+}
 
         return () => {
-            if (dashAnimRef.current !== null) cancelAnimationFrame(dashAnimRef.current);
-            if (revealAnimRef.current !== null) cancelAnimationFrame(revealAnimRef.current);
+            if (dashAnimRef.current !== null) {
+cancelAnimationFrame(dashAnimRef.current);
+}
+
+            if (revealAnimRef.current !== null) {
+cancelAnimationFrame(revealAnimRef.current);
+}
+
             dashAnimRef.current = null;
             revealAnimRef.current = null;
         };
@@ -573,7 +652,9 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
     useEffect(() => {
         const map = mapRef.current;
 
-        if (!map || !result) return;
+        if (!map || !result) {
+return;
+}
 
         for (const r of result.routes) {
             const isHidden = hidden.has(r.route_index);
@@ -587,7 +668,10 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
             ];
 
             for (const [id, w, op] of layers) {
-                if (!map.getLayer(id)) continue;
+                if (!map.getLayer(id)) {
+continue;
+}
+
                 map.setLayoutProperty(id, 'visibility', isHidden ? 'none' : 'visible');
                 map.setPaintProperty(id, 'line-width', w);
                 map.setPaintProperty(id, 'line-opacity', op);
@@ -599,8 +683,11 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
         setHidden((prev) => {
             const next = new Set(prev);
 
-            if (next.has(idx)) next.delete(idx);
-            else next.add(idx);
+            if (next.has(idx)) {
+next.delete(idx);
+} else {
+next.add(idx);
+}
 
             return next;
         });
@@ -610,13 +697,21 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
     useEffect(() => {
         const map = mapRef.current;
 
-        if (!map || !result) return;
+        if (!map || !result) {
+return;
+}
 
-        for (const m of vehicleMarkersRef.current) m.remove();
+        for (const m of vehicleMarkersRef.current) {
+m.remove();
+}
+
         vehicleMarkersRef.current = [];
 
         if (!playing) {
-            if (animRef.current !== null) cancelAnimationFrame(animRef.current);
+            if (animRef.current !== null) {
+cancelAnimationFrame(animRef.current);
+}
+
             animRef.current = null;
 
             return;
@@ -651,6 +746,7 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
                 for (let i = 1; i < coords.length; i++) {
                     cum.push(cum[i - 1] + haversine(coords[i - 1], coords[i]));
                 }
+
                 const el = document.createElement('div');
 
                 el.style.cssText = `width:14px;height:14px;border-radius:9999px;background:${r.color};box-shadow:0 0 0 3px rgba(255,255,255,0.35),0 0 12px ${r.color};`;
@@ -663,15 +759,18 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
                 return { idx: r.route_index, color: r.color, coords, cum, total: cum[cum.length - 1], marker };
             });
 
-        if (anims.length === 0) return;
+        if (anims.length === 0) {
+return;
+}
 
         const DURATION_MS = 18000; // one lap takes ~18s regardless of route length
-        let start = performance.now() - elapsedRef.current;
+        const start = performance.now() - elapsedRef.current;
 
         const step = (now: number) => {
             const t = ((now - start) % DURATION_MS) / DURATION_MS;
 
             elapsedRef.current = (now - start) % DURATION_MS;
+
             for (const a of anims) {
                 const target = t * a.total;
                 // Binary search for segment.
@@ -680,9 +779,13 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
                 while (lo < hi) {
                     const mid = (lo + hi) >> 1;
 
-                    if (a.cum[mid] < target) lo = mid + 1;
-                    else hi = mid;
+                    if (a.cum[mid] < target) {
+lo = mid + 1;
+} else {
+hi = mid;
+}
                 }
+
                 const i = Math.max(1, lo);
                 const segLen = a.cum[i] - a.cum[i - 1] || 1;
                 const segT = (target - a.cum[i - 1]) / segLen;
@@ -693,15 +796,23 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
 
                 a.marker.setLngLat([lng, lat]);
             }
+
             animRef.current = requestAnimationFrame(step);
         };
 
         animRef.current = requestAnimationFrame(step);
 
         return () => {
-            if (animRef.current !== null) cancelAnimationFrame(animRef.current);
+            if (animRef.current !== null) {
+cancelAnimationFrame(animRef.current);
+}
+
             animRef.current = null;
-            for (const m of vehicleMarkersRef.current) m.remove();
+
+            for (const m of vehicleMarkersRef.current) {
+m.remove();
+}
+
             vehicleMarkersRef.current = [];
         };
     }, [playing, result, hidden]);
@@ -709,27 +820,51 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
     const focusRoute = (idx: number) => {
         const map = mapRef.current;
 
-        if (!map || !result) return;
+        if (!map || !result) {
+return;
+}
+
         const r = result.routes.find((x) => x.route_index === idx);
 
-        if (!r) return;
+        if (!r) {
+return;
+}
+
         const coords = r.geometry.coordinates;
 
-        if (!coords.length) return;
+        if (!coords.length) {
+return;
+}
+
         let [minLng, minLat] = coords[0];
         let [maxLng, maxLat] = coords[0];
 
         for (const [lng, lat] of coords) {
-            if (lng < minLng) minLng = lng;
-            if (lng > maxLng) maxLng = lng;
-            if (lat < minLat) minLat = lat;
-            if (lat > maxLat) maxLat = lat;
+            if (lng < minLng) {
+minLng = lng;
+}
+
+            if (lng > maxLng) {
+maxLng = lng;
+}
+
+            if (lat < minLat) {
+minLat = lat;
+}
+
+            if (lat > maxLat) {
+maxLat = lat;
+}
         }
+
         map.fitBounds([[minLng, minLat], [maxLng, maxLat]], { padding: 80, duration: 700 });
     };
 
     const dispatch = async () => {
-        if (!result) return;
+        if (!result) {
+return;
+}
+
         const routes = result.routes
             .map((r) => ({ r, driverId: assignments[r.route_index] }))
             .filter((x) => x.driverId)
@@ -737,22 +872,35 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
                 vehicle_index: r.route_index,
                 driver_id: driverId,
                 color: r.color,
-                total_distance: r.distance ?? null,
+                total_distance: (r as any).raw_distance ?? r.distance ?? null,
                 num_stops: r.num_stops ?? null,
+                // Send snapped coords so the mobile map draws street-accurate markers
                 stops: [result.depot_id, ...r.node_ids.filter((n) => n !== result.depot_id), result.depot_id]
                     .map((nid) => {
                         const n = result.nodes.find((x) => x.id === nid)!;
-                        return { node_id: n.id, lat: n.lat, lng: n.lng, is_depot: n.is_depot };
+
+                        return {
+                            node_id: n.id,
+                            lat: n.lat,
+                            lng: n.lng,
+                            snapped_lat: n.snapped_lat ?? n.lat,
+                            snapped_lng: n.snapped_lng ?? n.lng,
+                            is_depot: n.is_depot,
+                        };
                     }),
+                // OSMnx street geometry — mobile app draws this instead of straight lines
+                geometry: r.geometry ?? null,
             }));
 
         if (routes.length === 0) {
             setDispatchMsg('Assign at least one driver before dispatching.');
+
             return;
         }
 
         setDispatching(true);
         setDispatchMsg(null);
+
         try {
             const res = await fetch('/optimize/dispatch', {
                 method: 'POST',
@@ -770,10 +918,19 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
                 }),
             });
             const json = await res.json();
+
             if (!res.ok || !json.ok) {
                 setDispatchMsg(json.error || 'Dispatch failed');
+
                 return;
             }
+
+            if (json.route_id) {
+                router.visit(`/routes/${json.route_id}`);
+
+                return;
+            }
+
             setDispatchMsg(`Dispatched ${json.count} route${json.count === 1 ? '' : 's'}.`);
         } catch (e: unknown) {
             setDispatchMsg(e instanceof Error ? e.message : String(e));
@@ -783,8 +940,12 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
     };
 
     const summaryStats = useMemo(() => {
-        if (!result) return [];
+        if (!result) {
+return [];
+}
+
         const s = result.summary;
+
         return [
             { label: 'Routes', value: s.num_routes?.toString() ?? '—' },
             { label: 'Total distance', value: s.total_distance ? s.total_distance.toFixed(1) : '—' },
@@ -845,6 +1006,7 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
                                     <div className="flex flex-col border border-border/30 rounded-lg overflow-hidden divide-y divide-border/25">
                                         {Object.entries(algorithms).map(([key, label]) => {
                                             const quantum = key === 'recursive' || key === 'recursive_2opt';
+
                                             return (
                                                 <button
                                                     key={key}
@@ -980,6 +1142,7 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
                                     const isHidden = hidden.has(r.route_index);
                                     const isSelected = selected === r.route_index;
                                     const isFocused = focused === r.route_index;
+
                                     return (
                                         <div
                                             key={r.route_index}
@@ -1045,7 +1208,9 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
                                             {/* Visibility toggle */}
                                             <button
                                                 type="button"
-                                                onClick={(e) => { e.stopPropagation(); toggleHidden(r.route_index); }}
+                                                onClick={(e) => {
+ e.stopPropagation(); toggleHidden(r.route_index); 
+}}
                                                 className="shrink-0 text-muted-foreground/20 hover:text-muted-foreground/60 transition-colors"
                                                 title={isHidden ? 'Show' : 'Hide'}
                                             >
@@ -1113,11 +1278,11 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
                     <div ref={mapContainer} className="absolute inset-0" style={{ width: '100%', height: '100%' }} />
 
                     {/* Cinematic vignette */}
-                    <div className="pointer-events-none absolute inset-0 z-[2]"
+                    <div className="pointer-events-none absolute inset-0 z-2"
                         style={{ background: 'radial-gradient(ellipse 85% 80% at 50% 50%, transparent 50%, rgba(6,6,12,0.7) 100%)' }} />
 
                     {loading && (
-                        <div className="pointer-events-none absolute inset-0 z-[5] flex flex-col items-center justify-center gap-6 bg-black/25 backdrop-blur-[2px]">
+                        <div className="pointer-events-none absolute inset-0 z-5 flex flex-col items-center justify-center gap-6 bg-black/25 backdrop-blur-[2px]">
                             <div className="relative flex items-center justify-center">
                                 <span className="absolute h-20 w-20 rounded-full border border-primary/20 animate-ping" style={{ animationDuration: '2.4s' }} />
                                 <span className="absolute h-12 w-12 rounded-full border border-primary/35 animate-ping" style={{ animationDuration: '2.4s', animationDelay: '0.5s' }} />
@@ -1279,7 +1444,9 @@ function ComparisonMapCard({ result, mapboxToken }: { result: SolveResult; mapbo
     const markersRef = useRef<mapboxgl.Marker[]>([]);
 
     useEffect(() => {
-        if (!mapboxToken || !mapContainer.current || mapRef.current) return;
+        if (!mapboxToken || !mapContainer.current || mapRef.current) {
+return;
+}
 
         mapboxgl.accessToken = mapboxToken;
 

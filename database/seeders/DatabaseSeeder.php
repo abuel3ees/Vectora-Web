@@ -40,30 +40,43 @@ class DatabaseSeeder extends Seeder
         $driver->givePermissionTo(['view routes']);
 
         // Create Users
-        $adminUser = User::factory()->create([
-            'name' => 'Admin User',
+        $adminUser = User::firstOrCreate([
             'email' => 'admin@example.com',
+        ], [
+            'name' => 'Admin User',
             'password' => bcrypt('password'),
         ]);
         $adminUser->assignRole($admin);
 
-        $dispatcherUser = User::factory()->create([
-            'name' => 'Dispatcher User',
+        $dispatcherUser = User::firstOrCreate([
             'email' => 'dispatcher@example.com',
+        ], [
+            'name' => 'Dispatcher User',
             'password' => bcrypt('password'),
         ]);
         $dispatcherUser->assignRole($dispatcher);
 
-        $driverUser = User::factory()->create([
-            'name' => 'Driver User',
-            'email' => 'driver@example.com',
-            'password' => bcrypt('password'),
-        ]);
-        $driverUser->assignRole($driver);
+        $driverProfiles = [
+            ['name' => 'driver1', 'email' => 'driver1@example.com'],
+            ['name' => 'driver2', 'email' => 'driver2@example.com'],
+            ['name' => 'driver3', 'email' => 'driver3@example.com'],
+        ];
+
+        foreach ($driverProfiles as $profile) {
+            $driverUser = User::firstOrCreate([
+                'email' => $profile['email'],
+            ], [
+                'name' => $profile['name'],
+                'password' => bcrypt('password'),
+            ]);
+            $driverUser->assignRole($driver);
+        }
 
         // Dummy Data for Routes
         for ($i = 1; $i <= 5; $i++) {
-            DispatchRoute::create([
+            DispatchRoute::firstOrCreate([
+                'name' => "Route $i",
+            ], [
                 'name' => "Route $i",
                 'status' => 'pending',
                 'description' => "Delivery route #$i",

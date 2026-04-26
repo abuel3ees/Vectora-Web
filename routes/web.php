@@ -17,13 +17,17 @@ Route::inertia('/', 'welcome', [
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
+    Route::get('dashboard/live-locations', [DashboardController::class, 'liveLocations'])
+        ->name('dashboard.live-locations');
     Route::inertia('presentation', 'presentation')->name('presentation');
 
     Route::resource('users', UserController::class);
-    Route::resource('routes', DispatchRouteController::class);
+    Route::resource('routes', DispatchRouteController::class)
+        ->parameters(['routes' => 'dispatchRoute']);
 
     Route::get('fleet', FleetController::class)->name('fleet');
     Route::get('analytics', AnalyticsController::class)->name('analytics');
+    Route::inertia('delivery-proofs', 'DeliveryProofs')->name('delivery-proofs');
 
     Route::get('optimize', [OptimizeController::class, 'show'])->name('optimize');
     Route::post('optimize/solve', [OptimizeController::class, 'solve'])->name('optimize.solve');
@@ -31,6 +35,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('optimize/dispatch', [DriverAssignmentController::class, 'store'])->name('optimize.dispatch');
     Route::inertia('optimize/algorithm-walkthrough', 'optimize/AlgorithmWalkthrough')->name('optimize.walkthrough');
     Route::get('optimize/history', [OptimizeController::class, 'history'])->name('optimize.history');
+    
+    // Dispatcher messaging
+    Route::post('assignments/{assignment}/message', [App\Http\Controllers\MessageController::class, 'sendMessage'])
+        ->whereNumber('assignment')
+        ->middleware('can:create,routes')
+        ->name('message.send');
 });
 
 // Driver-facing API — consumed by the Flutter app.
@@ -50,10 +60,36 @@ Route::middleware(['auth:sanctum'])->prefix('api/driver')->withoutMiddleware('we
     // Assignments (routes)
     Route::get('assignments', [DriverAssignmentController::class, 'mine']);
     Route::get('assignments/{assignment}', [DriverAssignmentController::class, 'show'])->whereNumber('assignment');
+    Route::post('assignments/{assignment}/location', [DriverAssignmentController::class, 'recordLocation'])->whereNumber('assignment');
     Route::post('assignments/{assignment}/status', [DriverAssignmentController::class, 'updateStatus'])->whereNumber('assignment');
     Route::post('assignments/{assignment}/stops/{stopIndex}', [DriverAssignmentController::class, 'recordStop'])
         ->whereNumber('assignment')
         ->whereNumber('stopIndex');
+
+    // Photo uploads
+    Route::post('assignments/{assignment}/stops/{stopIndex}/photos', [DriverAssignmentController::class, 'uploadPhoto'])
+        ->whereNumber('assignment')
+        ->whereNumber('stopIndex');
+    Route::get('assignments/{assignment}/photos', [DriverAssignmentController::class, 'getPhotos'])
+        ->whereNumber('assignment');
+
+    // Signature uploads
+    Route::post('assignments/{assignment}/stops/{stopIndex}/signature', [DriverAssignmentController::class, 'uploadSignature'])
+        ->whereNumber('assignment')
+        ->whereNumber('stopIndex');
+
+    // Statistics and history
+    Route::get('statistics', [DriverAssignmentController::class, 'getStatistics']);
+    Route::get('statistics/summary', [App\Http\Controllers\DriverStatsController::class, 'getSummary']);
+    Route::get('delivery-history', [DriverAssignmentController::class, 'getDeliveryHistory']);
+    Route::get('delivery-proofs', [DriverAssignmentController::class, 'getDeliveryProofs']);
+
+    // Messages
+    Route::get('messages', [App\Http\Controllers\MessageController::class, 'getMessages']);
+    Route::get('assignments/{assignment}/messages', [App\Http\Controllers\MessageController::class, 'getAssignmentMessages'])
+        ->whereNumber('assignment');
+    Route::post('messages/{message}/read', [App\Http\Controllers\MessageController::class, 'markAsRead'])
+        ->whereNumber('message');
 
     // Diagnostic endpoint (debug only)
     Route::get('diagnostic', [DriverAssignmentController::class, 'diagnostic']);

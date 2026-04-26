@@ -21,9 +21,18 @@ function formatTimeAgo(dateStr: string): string {
     const now = new Date();
     const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
     
-    if (seconds < 60) return `${seconds}s ago`;
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    if (seconds < 60) {
+return `${seconds}s ago`;
+}
+
+    if (seconds < 3600) {
+return `${Math.floor(seconds / 60)}m ago`;
+}
+
+    if (seconds < 86400) {
+return `${Math.floor(seconds / 3600)}h ago`;
+}
+
     return `${Math.floor(seconds / 86400)}d ago`;
 }
 
@@ -34,6 +43,7 @@ export default function OptimizationHistory({ records = [] }: { records: Optimiz
     const stats = useMemo(() => {
         const valid = records.filter(r => r.valid).length;
         const totalTime = records.reduce((sum, r) => sum + (r.elapsed || 0), 0);
+
         return {
             total: records.length,
             valid,
@@ -46,7 +56,11 @@ export default function OptimizationHistory({ records = [] }: { records: Optimiz
 
     const sparkline = useMemo(() => {
         const vals = [...records].reverse().map(r => r.total_distance || 0).filter(v => v > 0);
-        if (vals.length < 2) return null;
+
+        if (vals.length < 2) {
+return null;
+}
+
         const min = Math.min(...vals), max = Math.max(...vals);
         const span = max - min || 1;
         const W = 300, H = 40;
@@ -54,6 +68,7 @@ export default function OptimizationHistory({ records = [] }: { records: Optimiz
         const pts = vals.map((v, i) => [i * step, H - ((v - min) / span) * (H - 4) - 2] as const);
         const d = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ');
         const area = `${d} L${W} ${H} L0 ${H} Z`;
+
         return { d, area, W, H, last: pts[pts.length - 1] };
     }, [records]);
 

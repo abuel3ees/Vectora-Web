@@ -45,6 +45,7 @@ export default function Security({
         if (prevTwoFactorEnabled.current && !twoFactorEnabled) {
             clearTwoFactorAuthData();
         }
+
         prevTwoFactorEnabled.current = twoFactorEnabled;
     }, [twoFactorEnabled, clearTwoFactorAuthData]);
 
@@ -66,8 +67,13 @@ export default function Security({
                         resetOnError={['password', 'password_confirmation', 'current_password']}
                         resetOnSuccess
                         onError={(formErrors) => {
-                            if (formErrors.password) passwordInput.current?.focus();
-                            if (formErrors.current_password) currentPasswordInput.current?.focus();
+                            if (formErrors.password) {
+passwordInput.current?.focus();
+}
+
+                            if (formErrors.current_password) {
+currentPasswordInput.current?.focus();
+}
                         }}
                         className="flex flex-col gap-8"
                     >

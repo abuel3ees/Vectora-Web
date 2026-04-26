@@ -120,7 +120,11 @@ const sy = (v: number) => PAD + ((yMax - v) / (yMax - yMin)) * (H - 2 * PAD);
 
 function cent(ids: number[]) {
     const pts = ids.map((i) => nm[i]).filter(Boolean);
-    if (!pts.length) return { x: D.x, y: D.y };
+
+    if (!pts.length) {
+return { x: D.x, y: D.y };
+}
+
     return {
         x: pts.reduce((s, p) => s + p.x, 0) / pts.length,
         y: pts.reduce((s, p) => s + p.y, 0) / pts.length,
@@ -129,29 +133,40 @@ function cent(ids: number[]) {
 
 function leafCent(leafId: string) {
     const l = LEAVES.find((x) => x.id === leafId);
+
     return l ? cent(l.n) : { x: D.x, y: D.y };
 }
 
 function clusterAllNodes(cid: string) {
     const c = D0_CLUSTERS.find((x) => x.id === cid);
-    if (!c) return [];
+
+    if (!c) {
+return [];
+}
+
     return c.leaves.flatMap((lid) => {
         const l = LEAVES.find((x) => x.id === lid);
+
         return l ? l.n : [];
     });
 }
 
 function hull(pts: [number, number][], expand = 14) {
-    if (pts.length < 2) return null;
+    if (pts.length < 2) {
+return null;
+}
+
     const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length;
     const cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
     const sorted = [...pts].sort(
         (a, b) => Math.atan2(a[1] - cy, a[0] - cx) - Math.atan2(b[1] - cy, b[0] - cx)
     );
+
     return sorted.map((p) => {
         const dx = p[0] - cx,
             dy = p[1] - cy,
             d = Math.sqrt(dx * dx + dy * dy) || 1;
+
         return [p[0] + (dx / d) * expand, p[1] + (dy / d) * expand];
     });
 }
@@ -176,8 +191,13 @@ function HullSVG({
         .filter(Boolean)
         .map((p) => [sx(p.x), sy(p.y)] as [number, number]);
     const h = hull(pts, expand);
-    if (!h || h.length < 2) return null;
+
+    if (!h || h.length < 2) {
+return null;
+}
+
     const d = h.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ') + 'Z';
+
     return (
         <path
             d={d}
@@ -213,6 +233,7 @@ function Dot({
     delay?: number;
 }) {
     const cx = sx(x), cy = sy(y);
+
     return (
         <g
             opacity={op}
@@ -262,6 +283,7 @@ function Edge({
         b = nm[n2] || D;
     const x1 = sx(a.x), y1 = sy(a.y), x2 = sx(b.x), y2 = sy(b.y);
     const len = Math.hypot(x2 - x1, y2 - y1);
+
     return (
         <line
             x1={x1}
@@ -397,11 +419,15 @@ export default function QAOAVisualization() {
 
     // Autoplay: advance to next tab every 4.5 seconds
     useEffect(() => {
-        if (!playing) return;
+        if (!playing) {
+return;
+}
+
         const nextIdx = tidx === TABS.length - 1 ? 0 : tidx + 1;
         const timer = setTimeout(() => {
             setTab(TABS[nextIdx].key);
         }, 6500);
+
         return () => clearTimeout(timer);
     }, [playing, tidx]);
 
@@ -409,9 +435,9 @@ export default function QAOAVisualization() {
         const els: JSX.Element[] = [];
 
         // Grid dots
-        for (let gx = 3500; gx <= 11000; gx += 500)
-            for (let gy = 2500; gy <= 7500; gy += 500)
-                els.push(
+        for (let gx = 3500; gx <= 11000; gx += 500) {
+for (let gy = 2500; gy <= 7500; gy += 500) {
+els.push(
                     <circle
                         key={`g${gx}_${gy}`}
                         cx={sx(gx)}
@@ -421,6 +447,8 @@ export default function QAOAVisualization() {
                         opacity={0.5}
                     />
                 );
+}
+}
 
         if (tab === 'raw') {
             ALL.forEach((n, i) =>
@@ -437,7 +465,10 @@ export default function QAOAVisualization() {
                 els.push(<HullSVG key={`h${l.id}`} nodeIds={l.n} color={c} opacity={0.15} />);
                 l.n.forEach((nid, k) => {
                     const n = nm[nid];
-                    if (n) els.push(<Dot key={nid} x={n.x} y={n.y} r={5} fill={c} stroke="#fff" label={nid} delay={base + k * 40} />);
+
+                    if (n) {
+els.push(<Dot key={nid} x={n.x} y={n.y} r={5} fill={c} stroke="#fff" label={nid} delay={base + k * 40} />);
+}
                 });
                 const ct = cent(l.n);
                 els.push(
@@ -465,11 +496,17 @@ export default function QAOAVisualization() {
                 els.push(<HullSVG key={`h${l.id}`} nodeIds={l.n} color={c} opacity={0.06} />);
                 l.n.forEach((nid, k) => {
                     const n = nm[nid];
-                    if (n) els.push(<Dot key={nid} x={n.x} y={n.y} r={4.5} fill={c} stroke="#fff" label={nid} delay={base + k * 60} />);
+
+                    if (n) {
+els.push(<Dot key={nid} x={n.x} y={n.y} r={4.5} fill={c} stroke="#fff" label={nid} delay={base + k * 60} />);
+}
                 });
                 els.push(<Edge key={`ds${l.id}`} n1={0} n2={l.n[0]} color={c} w={1} dash="4 3" op={0.35} delay={base + 200} />);
-                for (let j = 0; j < l.n.length - 1; j++)
-                    els.push(<Edge key={`e${l.id}${j}`} n1={l.n[j]} n2={l.n[j + 1]} color={c} w={2.2} op={0.85} delay={base + 280 + j * 110} />);
+
+                for (let j = 0; j < l.n.length - 1; j++) {
+els.push(<Edge key={`e${l.id}${j}`} n1={l.n[j]} n2={l.n[j + 1]} color={c} w={2.2} op={0.85} delay={base + 280 + j * 110} />);
+}
+
                 els.push(
                     <Edge
                         key={`de${l.id}`}
@@ -492,16 +529,24 @@ export default function QAOAVisualization() {
                 els.push(<HullSVG key={`mh${cl.id}`} nodeIds={allN} color={mc} opacity={0.08} expand={22} dash="6 3" />);
                 allN.forEach((nid) => {
                     const n = nm[nid];
-                    if (n) els.push(<Dot key={`f${nid}`} x={n.x} y={n.y} r={2} fill={mc} stroke="none" op={0.2} />);
+
+                    if (n) {
+els.push(<Dot key={`f${nid}`} x={n.x} y={n.y} r={2} fill={mc} stroke="none" op={0.2} />);
+}
                 });
                 cl.leaves.forEach((lid) => {
                     const lf = LEAVES.find((x) => x.id === lid);
-                    if (!lf) return;
+
+                    if (!lf) {
+return;
+}
+
                     const ct = cent(lf.n);
                     lf.n.forEach((nid) => {
                         const n = nm[nid];
-                        if (n)
-                            els.push(
+
+                        if (n) {
+els.push(
                                 <line
                                     key={`sln${lid}${nid}`}
                                     x1={sx(ct.x)}
@@ -514,6 +559,7 @@ export default function QAOAVisualization() {
                                     opacity={0.15}
                                 />
                             );
+}
                     });
                     els.push(
                         <g key={`sn${lid}`}>
@@ -559,14 +605,19 @@ export default function QAOAVisualization() {
                 els.push(<HullSVG key={`mh${cl.id}`} nodeIds={allN} color={mc} opacity={0.06} expand={22} />);
                 allN.forEach((nid) => {
                     const n = nm[nid];
-                    if (n) els.push(<Dot key={`f${nid}`} x={n.x} y={n.y} r={1.5} fill={mc} stroke="none" op={0.15} />);
+
+                    if (n) {
+els.push(<Dot key={`f${nid}`} x={n.x} y={n.y} r={1.5} fill={mc} stroke="none" op={0.15} />);
+}
                 });
                 const snCentroids = cl.leaves
                     .map((lid) => {
                         const lf = LEAVES.find((x) => x.id === lid);
+
                         return lf ? cent(lf.n) : null;
                     })
                     .filter(Boolean) as Array<{ x: number; y: number }>;
+
                 if (snCentroids.length > 0) {
                     els.push(
                         <line
@@ -581,8 +632,9 @@ export default function QAOAVisualization() {
                             opacity={0.4}
                         />
                     );
-                    for (let j = 0; j < snCentroids.length - 1; j++)
-                        els.push(
+
+                    for (let j = 0; j < snCentroids.length - 1; j++) {
+els.push(
                             <line
                                 key={`sqe${cl.id}${j}`}
                                 x1={sx(snCentroids[j].x)}
@@ -594,6 +646,8 @@ export default function QAOAVisualization() {
                                 opacity={0.75}
                             />
                         );
+}
+
                     els.push(
                         <line
                             key={`sqde${cl.id}`}
@@ -608,9 +662,14 @@ export default function QAOAVisualization() {
                         />
                     );
                 }
+
                 cl.leaves.forEach((lid) => {
                     const lf = LEAVES.find((x) => x.id === lid);
-                    if (!lf) return;
+
+                    if (!lf) {
+return;
+}
+
                     const ct = cent(lf.n);
                     els.push(
                         <g key={`sqn${lid}`}>
@@ -656,7 +715,10 @@ export default function QAOAVisualization() {
                 els.push(<HullSVG key={`ah${va.id}`} nodeIds={allN} color={vc} opacity={0.12} expand={24} />);
                 allN.forEach((nid) => {
                     const n = nm[nid];
-                    if (n) els.push(<Dot key={`an${nid}`} x={n.x} y={n.y} r={3.5} fill={vc} stroke="#fff" sw={0.8} op={0.5} />);
+
+                    if (n) {
+els.push(<Dot key={`an${nid}`} x={n.x} y={n.y} r={3.5} fill={vc} stroke="#fff" sw={0.8} op={0.5} />);
+}
                 });
                 const mct = cent(allN);
                 const bx = sx(mct.x),
@@ -709,25 +771,37 @@ export default function QAOAVisualization() {
             FINAL_ALLOC.forEach((va) => {
                 const allN = va.clusters.flatMap((cid) => clusterAllNodes(cid));
                 const perRoute = Math.ceil(allN.length / va.k);
+
                 for (let v = 0; v < va.k; v++) {
                     const route = allN.slice(v * perRoute, (v + 1) * perRoute);
-                    if (!route.length) continue;
+
+                    if (!route.length) {
+continue;
+}
+
                     const rc = vcolors[ri % vcolors.length];
                     const rbase = 200 + ri * 220;
                     ri++;
                     route.forEach((nid, k) => {
                         const n = nm[nid];
-                        if (n) els.push(<Dot key={`fn${nid}`} x={n.x} y={n.y} r={5} fill={rc} stroke="#fff" label={nid} delay={rbase + k * 50} />);
+
+                        if (n) {
+els.push(<Dot key={`fn${nid}`} x={n.x} y={n.y} r={5} fill={rc} stroke="#fff" label={nid} delay={rbase + k * 50} />);
+}
                     });
                     els.push(<Edge key={`fds${ri}`} n1={0} n2={route[0]} color={rc} w={1.5} dash="5 4" op={0.45} delay={rbase + 150} />);
-                    for (let j = 0; j < route.length - 1; j++)
-                        els.push(<Edge key={`fe${ri}_${j}`} n1={route[j]} n2={route[j + 1]} color={rc} w={2.6} op={0.85} delay={rbase + 220 + j * 90} />);
+
+                    for (let j = 0; j < route.length - 1; j++) {
+els.push(<Edge key={`fe${ri}_${j}`} n1={route[j]} n2={route[j + 1]} color={rc} w={2.6} op={0.85} delay={rbase + 220 + j * 90} />);
+}
+
                     els.push(<Edge key={`fde${ri}`} n1={route[route.length - 1]} n2={0} color={rc} w={1.5} dash="5 4" op={0.45} delay={rbase + 220 + route.length * 90} />);
                 }
             });
         }
 
         els.push(<DepotNode key="depot" />);
+
         return els;
     }, [tab]);
 
@@ -947,7 +1021,9 @@ export default function QAOAVisualization() {
                         {/* Controls */}
                         <div className="flex items-center gap-6">
                             <button
-                                onClick={() => { const p = tidx === 0 ? TABS.length - 1 : tidx - 1; setTab(TABS[p].key); }}
+                                onClick={() => {
+ const p = tidx === 0 ? TABS.length - 1 : tidx - 1; setTab(TABS[p].key); 
+}}
                                 className="font-display italic text-sm text-muted-foreground/60 transition-colors hover:text-foreground"
                             >
                                 ← prev
@@ -961,7 +1037,9 @@ export default function QAOAVisualization() {
                                 <span className="text-sm leading-none">{playing ? '❚❚' : '▶'}</span>
                             </button>
                             <button
-                                onClick={() => { const n = tidx === TABS.length - 1 ? 0 : tidx + 1; setTab(TABS[n].key); }}
+                                onClick={() => {
+ const n = tidx === TABS.length - 1 ? 0 : tidx + 1; setTab(TABS[n].key); 
+}}
                                 className="font-display italic text-sm text-muted-foreground/60 transition-colors hover:text-foreground"
                             >
                                 next →
@@ -974,10 +1052,13 @@ export default function QAOAVisualization() {
                         {SCENES.map((s, idx) => {
                             const active = idx === tidx;
                             const past = idx < tidx;
+
                             return (
                                 <button
                                     key={s.key}
-                                    onClick={() => { setTab(s.key); setPlaying(false); }}
+                                    onClick={() => {
+ setTab(s.key); setPlaying(false); 
+}}
                                     className="group flex flex-col items-start gap-2 text-left"
                                     title={s.title}
                                 >

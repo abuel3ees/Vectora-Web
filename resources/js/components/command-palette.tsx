@@ -35,14 +35,30 @@ const ACTION_ENTRIES: Entry[] = [
 const ALL_ENTRIES = [...NAV_ENTRIES, ...ACTION_ENTRIES];
 
 function score(entry: Entry, query: string): number {
-    if (!query) return 0;
+    if (!query) {
+return 0;
+}
+
     const q = query.toLowerCase();
     const label = entry.label.toLowerCase();
     const sub   = (entry.sub ?? '').toLowerCase();
-    if (label === q)           return 100;
-    if (label.startsWith(q))   return 80;
-    if (label.includes(q))     return 60;
-    if (sub.includes(q))       return 30;
+
+    if (label === q)           {
+return 100;
+}
+
+    if (label.startsWith(q))   {
+return 80;
+}
+
+    if (label.includes(q))     {
+return 60;
+}
+
+    if (sub.includes(q))       {
+return 30;
+}
+
     return 0;
 }
 
@@ -62,8 +78,12 @@ export function CommandPalette() {
 
     // Group for display
     const groups = filtered.reduce<Record<string, Entry[]>>((acc, entry) => {
-        if (!acc[entry.group]) acc[entry.group] = [];
+        if (!acc[entry.group]) {
+acc[entry.group] = [];
+}
+
         acc[entry.group].push(entry);
+
         return acc;
     }, {});
 
@@ -73,8 +93,16 @@ export function CommandPalette() {
     const commit = useCallback((entry: Entry) => {
         setOpen(false);
         setQuery('');
-        if (entry.action) { entry.action(); return; }
-        if (entry.href)   { router.visit(entry.href); }
+
+        if (entry.action) {
+ entry.action();
+
+ return; 
+}
+
+        if (entry.href)   {
+ router.visit(entry.href); 
+}
     }, []);
 
     useEffect(() => {
@@ -85,22 +113,42 @@ export function CommandPalette() {
                 setQuery('');
                 setCursor(0);
             }
-            if (!open) return;
-            if (e.key === 'Escape') { setOpen(false); setQuery(''); }
-            if (e.key === 'ArrowDown') { e.preventDefault(); setCursor(c => Math.min(c + 1, flat.length - 1)); }
-            if (e.key === 'ArrowUp')   { e.preventDefault(); setCursor(c => Math.max(c - 1, 0)); }
-            if (e.key === 'Enter' && flat[cursor]) { commit(flat[cursor]); }
+
+            if (!open) {
+return;
+}
+
+            if (e.key === 'Escape') {
+ setOpen(false); setQuery(''); 
+}
+
+            if (e.key === 'ArrowDown') {
+ e.preventDefault(); setCursor(c => Math.min(c + 1, flat.length - 1)); 
+}
+
+            if (e.key === 'ArrowUp')   {
+ e.preventDefault(); setCursor(c => Math.max(c - 1, 0)); 
+}
+
+            if (e.key === 'Enter' && flat[cursor]) {
+ commit(flat[cursor]); 
+}
         };
         window.addEventListener('keydown', handler);
+
         return () => window.removeEventListener('keydown', handler);
     }, [open, flat, cursor, commit]);
 
     // Reset cursor on query change
-    useEffect(() => { setCursor(0); }, [query]);
+    useEffect(() => {
+ setCursor(0); 
+}, [query]);
 
     // Focus input when opened
     useEffect(() => {
-        if (open) setTimeout(() => inputRef.current?.focus(), 30);
+        if (open) {
+setTimeout(() => inputRef.current?.focus(), 30);
+}
     }, [open]);
 
     return (
@@ -116,7 +164,9 @@ export function CommandPalette() {
                             exit={{ opacity: 0 }}
                             transition={{ duration: 0.15 }}
                             className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm"
-                            onClick={() => { setOpen(false); setQuery(''); }}
+                            onClick={() => {
+ setOpen(false); setQuery(''); 
+}}
                         />
 
                         {/* Palette */}
@@ -160,6 +210,7 @@ export function CommandPalette() {
                                                 {entries.map(entry => {
                                                     const isActive = flat.indexOf(entry) === cursor;
                                                     const Icon = entry.icon;
+
                                                     return (
                                                         <button
                                                             key={entry.id}

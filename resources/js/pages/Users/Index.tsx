@@ -1,8 +1,8 @@
 import { Head, Link } from '@inertiajs/react';
 import { motion } from 'framer-motion';
 import { Pencil, Trash2, UserPlus } from 'lucide-react';
-import AppLayout from '@/layouts/app/app-sidebar-layout';
 import { Button } from '@/components/ui/button';
+import AppLayout from '@/layouts/app/app-sidebar-layout';
 import { cn } from '@/lib/utils';
 import type { User, Paginated, PaginationLink } from '@/types';
 
