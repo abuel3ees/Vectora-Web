@@ -13,12 +13,38 @@ use Symfony\Component\Process\Process;
 class OptimizeController extends Controller
 {
     private const ALGORITHMS = [
-        'recursive'       => 'Recursive',
-        'recursive_2opt'  => 'Recursive · 2-opt',
-        'nn'              => 'Nearest neighbour',
-        'savings'         => 'Clarke–Wright savings',
-        'sweep'           => 'Sweep',
-        'ortools'         => 'OR-Tools',
+        // Construction heuristics
+        'nearest_neighbour'            => 'Nearest neighbour',
+        'nearest_neighbour_2opt'       => 'Nearest neighbour · 2-opt',
+        'sweep'                        => 'Sweep',
+        'sweep_2opt'                   => 'Sweep · 2-opt',
+        'savings_parallel'             => 'Clarke–Wright parallel',
+        'savings_parallel_2opt'        => 'Clarke–Wright parallel · 2-opt',
+        'savings_parallel_oropt'       => 'Clarke–Wright parallel · Or-opt',
+        'savings_sequential'           => 'Clarke–Wright sequential',
+        'savings_sequential_2opt'      => 'Clarke–Wright sequential · 2-opt',
+        'nearest_insertion'            => 'Nearest insertion',
+        'nearest_insertion_2opt'       => 'Nearest insertion · 2-opt',
+        'farthest_insertion'           => 'Farthest insertion',
+        'farthest_insertion_2opt'      => 'Farthest insertion · 2-opt',
+        'cheapest_insertion'           => 'Cheapest insertion',
+        'cheapest_insertion_2opt'      => 'Cheapest insertion · 2-opt',
+        // Metaheuristics
+        'simulated_annealing'          => 'Simulated annealing',
+        'tabu_search'                  => 'Tabu search',
+        'iterated_local_search'        => 'Iterated local search',
+        'genetic'                      => 'Genetic algorithm',
+        // OR-Tools
+        'ortools_gls'                  => 'OR-Tools · GLS',
+        'ortools_sa'                   => 'OR-Tools · SA',
+        'ortools_tabu'                 => 'OR-Tools · Tabu',
+        'ortools_pca'                  => 'OR-Tools · PCA',
+        'ortools_savings'              => 'OR-Tools · Savings',
+        'ortools_christofides'         => 'OR-Tools · Christofides',
+        'ortools_parallel_cheapest'    => 'OR-Tools · Parallel cheapest',
+        // Quantum / recursive
+        'recursive_qaoa'               => 'Recursive QAOA',
+        'recursive_qaoa_2opt'          => 'Recursive QAOA · 2-opt',
     ];
 
     public function show(): Response
@@ -58,7 +84,7 @@ class OptimizeController extends Controller
     {
         $data = $request->validate([
             'instance'  => ['required', 'string'],
-            'k'         => ['required', 'integer', 'min:1', 'max:30'],
+            'k'         => ['required', 'integer', 'min:1', 'max:100'],
             'algorithm' => ['required', 'string', 'in:'.implode(',', array_keys(self::ALGORITHMS))],
             'force'     => ['sometimes', 'boolean'],
         ]);
@@ -168,11 +194,14 @@ class OptimizeController extends Controller
 
     private function instances(): array
     {
-        $list = [[
-            'key'   => 'rioclaro',
-            'label' => 'Rio Claro · Maison benchmark',
-            'size'  => 50,
-        ]];
+        $list = [
+            ['key' => '50',   'label' => 'Rio Claro Post · 50 stops',   'size' => 50],
+            ['key' => '100',  'label' => 'Rio Claro Post · 100 stops',  'size' => 100],
+            ['key' => '200',  'label' => 'Rio Claro Post · 200 stops',  'size' => 200],
+            ['key' => '500',  'label' => 'Rio Claro Post · 500 stops',  'size' => 500],
+            ['key' => '1000', 'label' => 'Rio Claro Post · 1000 stops', 'size' => 1000],
+            ['key' => 'rioclaro', 'label' => 'Rio Claro · Maison benchmark', 'size' => 50],
+        ];
 
         foreach (glob(base_path('scripts/instances/*.json')) as $file) {
             $key = pathinfo($file, PATHINFO_FILENAME);

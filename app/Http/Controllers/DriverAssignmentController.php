@@ -58,7 +58,7 @@ class DriverAssignmentController extends Controller
         }
 
         // Ensure a DispatchRoute record exists so dispatched routes appear in the admin routes list
-        $dispatchRoute = \App\Models\DispatchRoute::firstOrCreate(
+        \App\Models\DispatchRoute::firstOrCreate(
             ['name' => $data['instance']],
             [
                 'status'      => 'pending',
@@ -70,7 +70,6 @@ class DriverAssignmentController extends Controller
             'ok'          => true,
             'count'       => count($created),
             'assignments' => $created,
-            'route_id'    => $dispatchRoute->id,
         ], 201);
     }
 
@@ -603,6 +602,54 @@ class DriverAssignmentController extends Controller
     }
 
     /**
+     * Get all delivery proofs (photos and signatures) across all drivers — dispatcher web UI.
+     *
+     * GET /delivery-proofs/photos?from=2026-01-01&to=2026-12-31&driver_id=1
+     */
+    public function getAllDeliveryProofs(Request $request): JsonResponse
+    {
+        $from = $request->query('from');
+        $to = $request->query('to');
+        $driverId = $request->query('driver_id');
+
+        $query = DeliveryPhoto::query()
+            ->join('driver_assignments', 'delivery_photos.driver_assignment_id', '=', 'driver_assignments.id')
+            ->join('users', 'driver_assignments.driver_id', '=', 'users.id')
+            ->select('delivery_photos.*', 'users.name as driver_name_field')
+            ->whereNotNull('delivery_photos.photo_url');
+
+        if ($from) {
+            $query->whereDate('delivery_photos.photo_taken_at', '>=', $from);
+        }
+        if ($to) {
+            $query->whereDate('delivery_photos.photo_taken_at', '<=', $to);
+        }
+        if ($driverId) {
+            $query->where('driver_assignments.driver_id', $driverId);
+        }
+
+        $photos = $query
+            ->orderBy('delivery_photos.photo_taken_at', 'desc')
+            ->get()
+            ->map(fn ($photo) => [
+                'id'                   => $photo->id,
+                'photo_url'            => $photo->photo_url,
+                'photo_lat'            => $photo->photo_lat,
+                'photo_lng'            => $photo->photo_lng,
+                'location_verified'    => $photo->location_verified,
+                'location_distance_m'  => $photo->location_distance_m,
+                'driver_name'          => $photo->driver_name_field,
+                'stop_raw_index'       => $photo->stop_raw_index,
+                'photo_taken_at'       => $photo->photo_taken_at?->toIso8601String(),
+                'uploaded_at'          => $photo->uploaded_at?->toIso8601String(),
+                'notes'                => $photo->notes,
+                'signature_url'        => $photo->signature_url,
+            ]);
+
+        return response()->json(['ok' => true, 'photos' => $photos]);
+    }
+
+    /**
      * Record driver location during delivery.
      *
      * POST body: { lat: float, lng: float, accuracy?: float, speed?: float, heading?: int, timestamp?: ISO8601 }
@@ -634,6 +681,8 @@ class DriverAssignmentController extends Controller
             'recorded_at'          => $data['timestamp'] ?
                 \Carbon\Carbon::parse($data['timestamp']) : now(),
         ]);
+
+        $request->user()->update(['last_seen_at' => now()]);
 
         return response()->json([
             'ok'       => true,

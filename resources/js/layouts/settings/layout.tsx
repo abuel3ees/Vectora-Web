@@ -8,12 +8,13 @@ import { edit as editSecurity } from '@/routes/security';
 import type { NavItem } from '@/types';
 
 const sidebarNavItems: NavItem[] = [
-    { title: 'Profile',    href: edit(),          icon: null },
-    { title: 'Security',   href: editSecurity(),   icon: null },
-    { title: 'Appearance', href: editAppearance(), icon: null },
+    { title: 'Profile',    href: edit(),                  icon: null },
+    { title: 'Security',   href: editSecurity(),           icon: null },
+    { title: 'Appearance', href: editAppearance(),         icon: null },
+    { title: 'Developer',  href: '/settings/developer',   icon: null },
 ];
 
-const NUMERALS = ['i.', 'ii.', 'iii.'];
+const NUMERALS = ['i.', 'ii.', 'iii.', 'iv.'];
 
 export default function SettingsLayout({ children }: PropsWithChildren) {
     const { isCurrentOrParentUrl } = useCurrentUrl();

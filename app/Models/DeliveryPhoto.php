@@ -20,19 +20,22 @@ class DeliveryPhoto extends Model
         'location_verified',
         'photo_taken_at',
         'uploaded_at',
+        'signature_url',
+        'signature_captured_at',
     ];
 
     protected $casts = [
-        'photo_lat'           => 'float',
-        'photo_lng'           => 'float',
-        'stop_lat'            => 'float',
-        'stop_lng'            => 'float',
-        'location_distance_m' => 'float',
-        'location_verified'   => 'boolean',
-        'photo_taken_at'      => 'datetime',
-        'uploaded_at'         => 'datetime',
-        'created_at'          => 'datetime',
-        'updated_at'          => 'datetime',
+        'photo_lat'             => 'float',
+        'photo_lng'             => 'float',
+        'stop_lat'              => 'float',
+        'stop_lng'              => 'float',
+        'location_distance_m'   => 'float',
+        'location_verified'     => 'boolean',
+        'photo_taken_at'        => 'datetime',
+        'uploaded_at'           => 'datetime',
+        'signature_captured_at' => 'datetime',
+        'created_at'            => 'datetime',
+        'updated_at'            => 'datetime',
     ];
 
     /**

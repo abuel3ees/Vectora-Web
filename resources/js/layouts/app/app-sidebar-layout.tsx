@@ -34,7 +34,6 @@ function NavItem({ entry, active }: { entry: NavEntry; active: boolean }) {
     return (
         <Link
             href={entry.href}
-            prefetch={!active}
             className={cn(
                 'group relative flex items-baseline gap-4 py-2.5 transition-colors',
                 entry.nested ? 'pl-12 pr-3' : 'pl-5 pr-3',
@@ -81,7 +80,7 @@ export default function AppSidebarLayout({ children, breadcrumbs = [] }: AppLayo
             <CommandPalette />
             <Sidebar className="border-r border-border/60">
                 <SidebarHeader className="px-6 pt-8 pb-6 border-b border-border/60">
-                    <Link href={dashboard()} prefetch className="flex items-center gap-3 group">
+                    <Link href={dashboard()} className="flex items-center gap-3 group">
                         <div className="flex h-10 w-10 items-center justify-center border border-border/80 rounded-sm transition-colors group-hover:border-foreground">
                             <span className="font-display text-2xl leading-none text-foreground">V</span>
                         </div>
@@ -109,7 +108,7 @@ export default function AppSidebarLayout({ children, breadcrumbs = [] }: AppLayo
                 </SidebarContent>
 
                 <SidebarFooter className="border-t border-border/60 px-6 py-6">
-                    <Link href="/settings/profile" prefetch className="flex items-center justify-between group">
+                    <Link href="/settings/profile" className="flex items-center justify-between group">
                         <div>
                             <div className="text-[9px] uppercase tracking-[0.3em] text-muted-foreground">The desk</div>
                             <div className="font-display text-sm text-foreground mt-1 group-hover:italic transition-all">Settings &amp; correspondence</div>
@@ -129,14 +128,14 @@ export default function AppSidebarLayout({ children, breadcrumbs = [] }: AppLayo
                 <main className="flex flex-col w-full h-screen">
                     {breadcrumbs && breadcrumbs.length > 0 && (
                         <div className="flex items-center gap-3 border-b border-border/60 px-8 md:px-12 py-5 text-[11px]">
-                            <Link href={dashboard()} prefetch className="uppercase tracking-[0.25em] text-muted-foreground hover:text-foreground transition-colors">
+                            <Link href={dashboard()} className="uppercase tracking-[0.25em] text-muted-foreground hover:text-foreground transition-colors">
                                 Home
                             </Link>
                             {breadcrumbs.map((breadcrumb: any, index: number) => (
                                 <div key={index} className="flex items-center gap-3">
                                     <span className="font-display italic text-muted-foreground/60">/</span>
                                     {breadcrumb.href ? (
-                                        <Link href={breadcrumb.href} prefetch className="uppercase tracking-[0.25em] text-muted-foreground hover:text-foreground transition-colors">
+                                        <Link href={breadcrumb.href} className="uppercase tracking-[0.25em] text-muted-foreground hover:text-foreground transition-colors">
                                             {breadcrumb.title || breadcrumb.label}
                                         </Link>
                                     ) : (

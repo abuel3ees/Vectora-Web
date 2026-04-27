@@ -7,6 +7,9 @@ export type FleetRow = {
     color: string | null
     stops: number | null
     vehicle: string | null
+    is_online: boolean
+    last_seen_at: string | null
+    assignment_id: number | null
 }
 
 type Props = {
@@ -17,10 +20,21 @@ type Props = {
 
 export function FleetStatus({ fleet, selectedDriverId, onSelectDriver }: Props) {
     return (
-        <div className="h-full">
+        <div className="h-full flex flex-col">
             <div className="px-6 py-5 border-b border-border/60">
                 <div className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">The roster</div>
-                <h3 className="font-display text-xl tracking-tight mt-0.5">Drivers, at present</h3>
+                <div className="flex items-baseline gap-3 mt-0.5">
+                    <h3 className="font-display text-xl tracking-tight">Drivers, at present</h3>
+                    {fleet.filter((f) => f.is_online).length > 0 && (
+                        <span className="flex items-center gap-1.5 text-[10px] text-green-500">
+                            <span className="relative flex size-1.5">
+                                <span className="absolute inset-0 rounded-full bg-green-500 animate-ping opacity-60" />
+                                <span className="relative size-1.5 rounded-full bg-green-500" />
+                            </span>
+                            {fleet.filter((f) => f.is_online).length} online
+                        </span>
+                    )}
+                </div>
             </div>
 
             {fleet.length === 0 ? (
@@ -30,7 +44,7 @@ export function FleetStatus({ fleet, selectedDriverId, onSelectDriver }: Props) 
                     </p>
                 </div>
             ) : (
-                <div className="divide-y divide-border/60">
+                <div className="divide-y divide-border/60 overflow-y-auto">
                     {fleet.map((v, i) => {
                         const idle = v.status === 'idle'
                         const isSelected = v.id === selectedDriverId
@@ -50,12 +64,19 @@ export function FleetStatus({ fleet, selectedDriverId, onSelectDriver }: Props) 
                                         onSelectDriver(v.id)
                                     }
                                 }}
-                                className={`flex items-baseline gap-4 px-6 py-4 cursor-pointer transition-colors ${isSelected ? 'bg-primary/8' : 'hover:bg-muted/20'}`}
+                                className={`flex items-center gap-3 px-6 py-4 cursor-pointer transition-colors ${isSelected ? 'bg-primary/8' : 'hover:bg-muted/20'}`}
                             >
-                                <span
-                                    className="h-1.5 w-1.5 rounded-full shrink-0"
-                                    style={{ backgroundColor: idle ? 'var(--muted-foreground)' : (v.color ?? 'var(--primary)') }}
-                                />
+                                {/* Online/offline dot */}
+                                <span className="relative flex size-2 shrink-0">
+                                    {v.is_online && (
+                                        <span className="absolute inset-0 rounded-full bg-green-500 animate-ping opacity-50" />
+                                    )}
+                                    <span
+                                        className="relative size-2 rounded-full"
+                                        style={{ backgroundColor: v.is_online ? '#22c55e' : (idle ? 'var(--muted-foreground)' : (v.color ?? 'var(--primary)')) }}
+                                    />
+                                </span>
+
                                 <div className="flex-1 min-w-0 flex items-baseline justify-between gap-4">
                                     <span className="font-display text-base tracking-tight truncate">{v.name}</span>
                                     <div className="flex items-center gap-2 shrink-0">

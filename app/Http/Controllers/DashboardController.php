@@ -15,13 +15,14 @@ class DashboardController extends Controller
 {
     /**
      * Build current live map payload for active assignments.
+     * Only includes drivers that have actually sent heartbeats (have last_seen_at set).
      */
     private function liveLocationsPayload(): array
     {
         $activeStatuses = ['pending', 'accepted', 'in_progress'];
 
         return DriverAssignment::with([
-            'driver:id,name',
+            'driver:id,name,last_seen_at',
             'latestLocation' => function ($query) {
                 $query->select([
                     'driver_locations.id',
@@ -37,24 +38,80 @@ class DashboardController extends Controller
         ])
             ->whereIn('status', $activeStatuses)
             ->orderByDesc('assigned_at')
-            ->get(['id', 'driver_id', 'vehicle_index', 'status', 'color'])
-            ->filter(fn ($a) => $a->latestLocation !== null)
-            ->map(fn ($a) => [
-                'assignment_id' => $a->id,
-                'driver_id' => $a->driver_id,
-                'driver_name' => $a->driver?->name ?? 'Unknown driver',
-                'vehicle_label' => 'V-'.str_pad((string) ($a->vehicle_index + 1), 2, '0', STR_PAD_LEFT),
-                'status' => $a->status,
-                'color' => $a->color,
-                'lat' => (float) $a->latestLocation->latitude,
-                'lng' => (float) $a->latestLocation->longitude,
-                'accuracy' => $a->latestLocation->accuracy !== null ? (float) $a->latestLocation->accuracy : null,
-                'speed' => $a->latestLocation->speed !== null ? (float) $a->latestLocation->speed : null,
-                'heading' => $a->latestLocation->heading,
-                'recorded_at' => optional($a->latestLocation->recorded_at)->toIso8601String(),
-            ])
+            ->get(['id', 'driver_id', 'vehicle_index', 'status', 'color', 'stops', 'stop_statuses'])
+            ->filter(function ($a) {
+                // Only include drivers who have sent at least one heartbeat
+                return $a->driver?->last_seen_at !== null;
+            })
+            ->map(function ($a) {
+                $latest = $a->latestLocation;
+                $fallback = $this->fallbackLocationForAssignment($a);
+
+                if (! $latest && ! $fallback) {
+                    return null;
+                }
+
+                return [
+                    'assignment_id' => $a->id,
+                    'driver_id' => $a->driver_id,
+                    'driver_name' => $a->driver?->name ?? 'Unknown driver',
+                    'vehicle_label' => 'V-'.str_pad((string) ($a->vehicle_index + 1), 2, '0', STR_PAD_LEFT),
+                    'status' => $a->status,
+                    'color' => $a->color,
+                    'is_online' => $a->driver?->isOnline() ?? false,
+                    'last_seen_at' => optional($a->driver?->last_seen_at)->toIso8601String(),
+                    'lat' => (float) ($latest?->latitude ?? $fallback['lat']),
+                    'lng' => (float) ($latest?->longitude ?? $fallback['lng']),
+                    'accuracy' => $latest?->accuracy !== null ? (float) $latest->accuracy : null,
+                    'speed' => $latest?->speed !== null ? (float) $latest->speed : null,
+                    'heading' => $latest?->heading,
+                    'recorded_at' => optional($latest?->recorded_at)->toIso8601String(),
+                    'location_source' => $latest ? 'gps' : $fallback['source'],
+                    'has_live_location' => $latest !== null,
+                ];
+            })
+            ->filter()
             ->values()
             ->toArray();
+    }
+
+    /**
+     * Use route geometry as a dispatcher-visible placeholder until the phone
+     * posts its first GPS sample. This keeps assigned drivers visible.
+     */
+    private function fallbackLocationForAssignment(DriverAssignment $assignment): ?array
+    {
+        $stops = collect($assignment->stops ?? []);
+
+        if ($stops->isEmpty()) {
+            return null;
+        }
+
+        $statuses = $assignment->stop_statuses ?? [];
+        $nextStop = $stops->first(function ($stop, $index) use ($statuses) {
+            if ($stop['is_depot'] ?? false) {
+                return false;
+            }
+
+            return ! isset($statuses[$index]['status']);
+        });
+
+        $stop = $nextStop
+            ?? $stops->first(fn ($stop) => ! ($stop['is_depot'] ?? false))
+            ?? $stops->first();
+
+        $lat = $stop['snapped_lat'] ?? $stop['lat'] ?? null;
+        $lng = $stop['snapped_lng'] ?? $stop['lng'] ?? null;
+
+        if ($lat === null || $lng === null) {
+            return null;
+        }
+
+        return [
+            'lat' => $lat,
+            'lng' => $lng,
+            'source' => $nextStop ? 'next_stop' : 'route',
+        ];
     }
 
     public function __invoke(): Response
@@ -68,11 +125,12 @@ class DashboardController extends Controller
         $totalDistanceToday = (float) DriverAssignment::where('status', 'completed')
             ->whereDate('completed_at', $today)->sum('total_distance');
 
-        $driverRoleUsers = User::role('driver')->get(['id', 'name']);
+        $driverRoleUsers = User::role('driver')->get(['id', 'name', 'last_seen_at']);
         $driversTotal    = $driverRoleUsers->count();
         $activeDriverIds = DriverAssignment::whereIn('status', $activeStatuses)
             ->distinct()->pluck('driver_id');
         $driversOnRoad   = $activeDriverIds->count();
+        $onlineNow       = $driverRoleUsers->filter(fn ($u) => $u->isOnline())->count();
 
         $avgStops = (float) DriverAssignment::whereIn('status', $activeStatuses)->avg('num_stops');
 
@@ -85,13 +143,11 @@ class DashboardController extends Controller
                 'note'  => 'in motion today',
             ],
             [
-                'name'  => 'Drivers on road',
-                'value' => (string) $driversOnRoad,
+                'name'  => 'Online now',
+                'value' => (string) $onlineNow,
                 'unit'  => $driversTotal > 0 ? "/{$driversTotal}" : null,
-                'delta' => $driversTotal > 0
-                    ? number_format(($driversOnRoad / max($driversTotal, 1)) * 100, 0).'%'
-                    : '—',
-                'note'  => 'of the roster',
+                'delta' => $driversOnRoad > 0 ? "{$driversOnRoad} on road" : '—',
+                'note'  => 'active in last 5 min',
             ],
             [
                 'name'  => 'Avg. stops',
@@ -134,12 +190,15 @@ class DashboardController extends Controller
                 ->first();
 
             return [
-                'id'      => $u->id,
-                'name'    => $u->name,
-                'status'  => $a ? $a->status : 'idle',
-                'color'   => $a?->color,
-                'stops'   => $a?->num_stops,
-                'vehicle' => $a ? 'V-'.str_pad((string) $a->vehicle_index + 1, 2, '0', STR_PAD_LEFT) : null,
+                'id'            => $u->id,
+                'name'          => $u->name,
+                'status'        => $a ? $a->status : 'idle',
+                'color'         => $a?->color,
+                'stops'         => $a?->num_stops,
+                'vehicle'       => $a ? 'V-'.str_pad((string) $a->vehicle_index + 1, 2, '0', STR_PAD_LEFT) : null,
+                'is_online'     => $u->isOnline(),
+                'last_seen_at'  => optional($u->last_seen_at)->toIso8601String(),
+                'assignment_id' => $a?->id,
             ];
         })->values();
 
@@ -178,17 +237,19 @@ class DashboardController extends Controller
             if ($anchor) {
                 $liveLocations[] = [
                     'assignment_id' => null,
-                    'driver_id' => null,
-                    'driver_name' => 'Anchor',
+                    'driver_id'     => null,
+                    'driver_name'   => 'Anchor',
                     'vehicle_label' => '—',
-                    'status' => 'idle',
-                    'color' => null,
-                    'lat' => (float) $anchor->latitude,
-                    'lng' => (float) $anchor->longitude,
-                    'accuracy' => $anchor->accuracy !== null ? (float) $anchor->accuracy : null,
-                    'speed' => null,
-                    'heading' => null,
-                    'recorded_at' => optional($anchor->recorded_at)->toIso8601String(),
+                    'status'        => 'idle',
+                    'color'         => null,
+                    'is_online'     => false,
+                    'last_seen_at'  => null,
+                    'lat'           => (float) $anchor->latitude,
+                    'lng'           => (float) $anchor->longitude,
+                    'accuracy'      => $anchor->accuracy !== null ? (float) $anchor->accuracy : null,
+                    'speed'         => null,
+                    'heading'       => null,
+                    'recorded_at'   => optional($anchor->recorded_at)->toIso8601String(),
                 ];
             }
         }

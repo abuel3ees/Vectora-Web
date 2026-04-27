@@ -121,6 +121,21 @@ Dark-first palette using OKLCH color space. Key tokens (defined in `resources/cs
 
 See `FRONTEND_DESIGN_SYSTEM.md` for the complete token reference used when building the Flutter mobile app.
 
+### Delivery Proofs
+
+Drivers upload photos and signatures via the Flutter app to the `/api/driver/*` routes (Sanctum token auth). The web dispatcher view at `/delivery-proofs` fetches data from a **separate** web endpoint:
+
+- **Dispatcher endpoint** — `GET /delivery-proofs/photos` (session auth, returns all drivers' photos) → `DriverAssignmentController@getAllDeliveryProofs`
+- **Driver endpoint** — `GET /api/driver/delivery-proofs` (Sanctum token auth, returns only the authenticated driver's own photos) → `DriverAssignmentController@getDeliveryProofs`
+
+**Do not point the web UI hook at `/api/driver/*` routes** — those routes strip the `web` middleware (`withoutMiddleware('web')`), so session-based dispatcher auth does not work on them.
+
+Photos are stored at `storage/app/public/delivery-photos/{assignmentId}/{stopIndex}/{timestamp}.ext` and served via `/storage/...` URLs. Signatures follow the same pattern under `storage/app/public/signatures/`.
+
+`photo_url` is nullable — signature-only records (driver captured a signature but no photo) are valid rows with `photo_url = null`. The dispatcher gallery (`/delivery-proofs/photos`) filters these out with `whereNotNull('photo_url')`.
+
+**Route show page** (`Routes/Show.tsx`) renders both delivery photos and customer signatures per-stop. `StopRow` partitions `photos` into `deliveryPhotos` (has `photo_url`) and `signatures` (has `signature_url`) — delivery photos open `PhotoModal`, signatures open `SignatureModal`. If a photo record has both, the signature is previewed inline at the bottom of the `PhotoModal`. Orphan photos/signatures (whose `stop_raw_index` doesn't match any stop) appear in separate unattached sections below the stop list.
+
 ### Auth & Permissions
 
 Laravel Fortify handles registration, login, and optional 2FA. Spatie Laravel Permission manages roles. The middleware group `['auth', 'verified']` gates all web routes. The `can:create,routes` policy gate is used on the messaging endpoint.

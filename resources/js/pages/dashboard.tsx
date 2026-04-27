@@ -12,6 +12,7 @@ import type { Activity } from '@/components/dashboard/recent-activity'
 import { StatsCards } from '@/components/dashboard/stats-cards'
 import type { Stat } from '@/components/dashboard/stats-cards'
 import { DriverStatsCard } from '@/components/dashboard/driver-stats-card'
+import { DispatchPanel } from '@/components/dashboard/dispatch-panel'
 import AppLayout from '@/layouts/app/app-sidebar-layout'
 import { useEffect, useState } from 'react'
 
@@ -51,6 +52,8 @@ type Props = {
     vehicle_label: string
     status: string
     color: string | null
+    is_online: boolean
+    last_seen_at: string | null
     lat: number
     lng: number
     accuracy: number | null
@@ -166,11 +169,23 @@ export default function DashboardPage({ stats, activeRoutes, fleet, recent, seri
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.4 }}
-        className="px-8 md:px-12 pb-16"
+        className="px-8 md:px-12"
       >
         <SectionHead eyebrow="Chapter III" title="Optimization, charted" note="A quiet study of efficiency" />
         <div className="rounded-2xl border border-border/60 bg-background overflow-hidden">
           <OptimizationChart series={series} />
+        </div>
+      </motion.section>
+
+      <motion.section
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.5 }}
+        className="px-8 md:px-12 pb-16"
+      >
+        <SectionHead eyebrow="Chapter IV · Dispatch" title="Message a driver" note="Instructions, alerts & notes" />
+        <div className="rounded-2xl border border-border/60 bg-background overflow-hidden">
+          <DispatchPanel fleet={fleet} />
         </div>
       </motion.section>
     </AppLayout>

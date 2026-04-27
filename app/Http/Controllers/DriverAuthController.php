@@ -77,6 +77,29 @@ class DriverAuthController extends Controller
     }
 
     /**
+     * Heartbeat — driver app pings this every ~2 min while foregrounded.
+     * Updates last_seen_at so the dashboard can show "online now".
+     */
+    public function heartbeat(Request $request): JsonResponse
+    {
+        $request->user()->update(['last_seen_at' => now()]);
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Store the driver's FCM device token for push notifications.
+     */
+    public function registerDevice(Request $request): JsonResponse
+    {
+        $request->validate(['fcm_token' => ['required', 'string', 'max:512']]);
+
+        $request->user()->update(['fcm_token' => $request->fcm_token]);
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
      * Refresh token endpoint.
      * Creates a new token while keeping the old one valid.
      * (In a production system, you'd invalidate the old token)

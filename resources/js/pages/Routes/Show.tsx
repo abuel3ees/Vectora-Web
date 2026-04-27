@@ -2,9 +2,9 @@ import { Head, Link } from '@inertiajs/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ArrowLeft,
-    CheckCircle2, XCircle, Clock, X, MapPin, Mail, ChevronLeft, ChevronRight, AlertCircle,
+    CheckCircle2, XCircle, Clock, X, MapPin, Mail, ChevronLeft, ChevronRight, AlertCircle, PenLine,
 } from 'lucide-react';
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app/app-sidebar-layout';
 import { cn } from '@/lib/utils';
@@ -34,7 +34,9 @@ interface StopStatus {
 interface Photo {
     id: number;
     stop_raw_index: number;
-    photo_url: string;
+    photo_url: string | null;
+    signature_url?: string | null;
+    signature_captured_at?: string | null;
     notes: string | null;
     photo_lat?: number | null;
     photo_lng?: number | null;
@@ -156,16 +158,17 @@ export default function Show({ dispatchRoute, assignments: rawAssignments }: Sho
     const selected = assignments.find(a => a.id === selectedId) ?? assignments[0] ?? null;
 
     const totals = useMemo(() => {
-        const photos    = assignments.reduce((s, a) => s + (a.photos?.length ?? 0), 0);
-        const distance  = assignments.reduce((s, a) => s + (a.total_distance || 0), 0);
-        const stops     = assignments.reduce((s, a) => s + a.num_stops, 0);
-        const completed = assignments.reduce((acc, asn) => {
+        const photos     = assignments.reduce((s, a) => s + (a.photos?.filter(p => p.photo_url).length ?? 0), 0);
+        const signatures = assignments.reduce((s, a) => s + (a.photos?.filter(p => p.signature_url).length ?? 0), 0);
+        const distance   = assignments.reduce((s, a) => s + (a.total_distance || 0), 0);
+        const stops      = assignments.reduce((s, a) => s + a.num_stops, 0);
+        const completed  = assignments.reduce((acc, asn) => {
             const s = Array.isArray(asn.stops) ? asn.stops : [];
 
             return acc + s.filter(x => !x.is_depot && asn.stop_statuses?.[String(x.raw_index)]?.status === 'completed').length;
         }, 0);
 
-        return { photos, distance, stops, completed };
+        return { photos, signatures, distance, stops, completed };
     }, [assignments]);
 
     const routeTone = statusTone[dispatchRoute.status] ?? statusTone.pending;
@@ -233,6 +236,7 @@ export default function Show({ dispatchRoute, assignments: rawAssignments }: Sho
                                     <MiniStat value={`${totals.completed}/${totals.stops}`} label="Done" />
                                     <MiniStat value={`${totals.distance.toFixed(1)}`} label="km" />
                                     {totals.photos > 0 && <MiniStat value={String(totals.photos)} label="Photos" />}
+                                    {totals.signatures > 0 && <MiniStat value={String(totals.signatures)} label="Signed" />}
                                 </div>
                             </div>
 
@@ -343,16 +347,16 @@ function DriverDetail({ assignment }: { assignment: Assignment }) {
     // useLayoutEffect for reset (synchronous setup), then useEffect for animation delay.
     const [barPct, setBarPct] = useState(0);
 
-    useLayoutEffect(() => {
-        setBarPct(0);
+    useEffect(() => {
         const t = setTimeout(() => setBarPct(pct), 80);
 
         return () => clearTimeout(t);
-    }, [assignment.id, pct]);
+    }, [pct]);
 
-    // Partition photos: matched to a stop vs. orphaned (stop index not in stops list)
-    const stopRawIndices = new Set(stops.map(s => Number(s.raw_index)));
-    const orphanPhotos = safePhotos.filter(p => !stopRawIndices.has(Number(p.stop_raw_index)));
+    // Partition by stop index: matched vs. orphaned
+    const stopRawIndices  = new Set(stops.map(s => Number(s.raw_index)));
+    const orphanPhotos    = safePhotos.filter(p => p.photo_url    && !stopRawIndices.has(Number(p.stop_raw_index)));
+    const orphanSigs      = safePhotos.filter(p => p.signature_url && !stopRawIndices.has(Number(p.stop_raw_index)));
 
     return (
         <div className="p-6 md:p-8 space-y-6">
@@ -489,6 +493,14 @@ function DriverDetail({ assignment }: { assignment: Assignment }) {
                     <PhotoStrip photos={orphanPhotos} label="Route photo" />
                 </section>
             )}
+
+            {/* ── Orphaned signatures ── */}
+            {orphanSigs.length > 0 && (
+                <section>
+                    <SectionLabel text="Signatures" meta={`${orphanSigs.length} unattached`} />
+                    <SignatureStrip photos={orphanSigs} label="Route signature" />
+                </section>
+            )}
         </div>
     );
 }
@@ -502,10 +514,15 @@ function StopRow({ stop, sequence, statusData, photos, color }: {
     photos: Photo[];
     color: string;
 }) {
-    const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+    const [lightboxIdx,   setLightboxIdx]   = useState<number | null>(null);
+    const [signaturePhoto, setSignaturePhoto] = useState<Photo | null>(null);
     const status = statusData?.status ?? 'pending';
     const tone   = stopTone[status];
     const Icon   = tone.icon;
+
+    const deliveryPhotos = photos.filter(p => p.photo_url);
+    const signatures     = photos.filter(p => p.signature_url);
+    const stopLabel      = stop.customer_name || `Stop ${sequence}`;
 
     return (
         <div className="px-5 py-4 hover:bg-muted/8 transition-colors duration-100">
@@ -524,7 +541,7 @@ function StopRow({ stop, sequence, statusData, photos, color }: {
                 <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-3 mb-0.5">
                         <p className="font-display text-[14px] leading-tight text-foreground/90">
-                            {stop.customer_name || `Stop ${sequence}`}
+                            {stopLabel}
                         </p>
                         <span className={cn('text-[10px] font-serif italic shrink-0 mt-0.5', tone.text)}>
                             {tone.label}
@@ -547,23 +564,21 @@ function StopRow({ stop, sequence, statusData, photos, color }: {
                         </p>
                     )}
 
-                    {/* Inline photo thumbnails attached to this stop */}
-                    {photos.length > 0 && (
+                    {/* Delivery photo thumbnails */}
+                    {deliveryPhotos.length > 0 && (
                         <div className="flex gap-2 mt-3 flex-wrap">
-                            {photos.map((photo, i) => (
+                            {deliveryPhotos.map((photo, i) => (
                                 <button
                                     key={photo.id}
                                     onClick={() => setLightboxIdx(i)}
                                     className="w-14 h-14 rounded-lg overflow-hidden border border-border/30 hover:border-border/60 hover:shadow-sm transition-all cursor-pointer shrink-0 relative group"
                                 >
                                     <img
-                                        src={photo.photo_url}
+                                        src={photo.photo_url!}
                                         alt={`Stop ${sequence} — photo ${i + 1}`}
                                         className="w-full h-full object-cover"
                                     />
                                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors" />
-                                    
-                                    {/* Location verification badge */}
                                     {photo.location_verified != null && (
                                         <div className="absolute top-0.5 right-0.5">
                                             {photo.location_verified ? (
@@ -577,18 +592,50 @@ function StopRow({ stop, sequence, statusData, photos, color }: {
                             ))}
                         </div>
                     )}
+
+                    {/* Customer signature thumbnails */}
+                    {signatures.length > 0 && (
+                        <div className="mt-3">
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                                <PenLine className="size-2.5 text-muted-foreground/35" />
+                                <span className="text-[9px] text-muted-foreground/35 font-mono uppercase tracking-wider">Customer Signature</span>
+                            </div>
+                            <div className="flex gap-2 flex-wrap">
+                                {signatures.map(sig => (
+                                    <button
+                                        key={`sig-${sig.id}`}
+                                        onClick={() => setSignaturePhoto(sig)}
+                                        className="w-24 h-12 rounded-lg overflow-hidden border border-border/30 hover:border-primary/40 hover:shadow-sm transition-all cursor-pointer shrink-0 bg-white/95"
+                                    >
+                                        <img
+                                            src={sig.signature_url!}
+                                            alt="Customer signature"
+                                            className="w-full h-full object-contain p-1.5"
+                                        />
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
-            {/* Per-stop lightbox — fixed, not clipped by overflow:hidden */}
+            {/* Modals — fixed, not clipped by overflow:hidden */}
             <AnimatePresence>
                 {lightboxIdx !== null && (
                     <PhotoModal
-                        photos={photos}
+                        photos={deliveryPhotos}
                         idx={lightboxIdx}
-                        label={stop.customer_name || `Stop ${sequence}`}
+                        label={stopLabel}
                         onClose={() => setLightboxIdx(null)}
                         onChange={setLightboxIdx}
+                    />
+                )}
+                {signaturePhoto !== null && (
+                    <SignatureModal
+                        photo={signaturePhoto}
+                        label={stopLabel}
+                        onClose={() => setSignaturePhoto(null)}
                     />
                 )}
             </AnimatePresence>
@@ -610,7 +657,7 @@ function PhotoStrip({ photos, label }: { photos: Photo[]; label: string }) {
                         onClick={() => setIdx(i)}
                         className="w-16 h-16 rounded-xl overflow-hidden border border-border/30 hover:border-border/60 hover:shadow-sm transition-all cursor-pointer relative group"
                     >
-                        <img src={photo.photo_url} alt={`${label} ${i + 1}`} className="w-full h-full object-cover" />
+                        <img src={photo.photo_url!} alt={`${label} ${i + 1}`} className="w-full h-full object-cover" />
                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors" />
                     </button>
                 ))}
@@ -667,7 +714,7 @@ function PhotoModal({ photos, idx, label, onClose, onChange }: {
 
                 <div className="rounded-xl overflow-hidden border border-white/10">
                     <img
-                        src={photo.photo_url}
+                        src={photo.photo_url!}
                         alt={`${label} — photo ${idx + 1}`}
                         className="w-full h-auto max-h-[68vh] object-contain bg-black"
                     />
@@ -680,6 +727,22 @@ function PhotoModal({ photos, idx, label, onClose, onChange }: {
                             <p className="text-[12px] font-serif italic text-white/60 mt-1">"{photo.notes}"</p>
                         )}
                         
+                        {/* Signature attached to this photo */}
+                        {photo.signature_url && (
+                            <div className="mt-3 pt-3 border-t border-white/10">
+                                <div className="flex items-center gap-1.5 mb-2">
+                                    <PenLine className="size-3 text-white/30" />
+                                    <span className="text-[10px] text-white/40 font-mono uppercase tracking-wider">Customer Signature</span>
+                                    {photo.signature_captured_at && (
+                                        <span className="text-[9px] text-white/25 font-mono ml-auto">{fmtDate(photo.signature_captured_at)}</span>
+                                    )}
+                                </div>
+                                <div className="rounded-lg bg-white p-2 inline-block">
+                                    <img src={photo.signature_url} alt="Customer signature" className="h-10 w-auto object-contain" />
+                                </div>
+                            </div>
+                        )}
+
                         {/* Location verification status */}
                         {photo.photo_lat != null && photo.photo_lng != null && (
                             <div className="mt-3 pt-3 border-t border-white/10 space-y-1.5">
@@ -750,6 +813,81 @@ function PhotoModal({ photos, idx, label, onClose, onChange }: {
                 )}
             </motion.div>
         </motion.div>
+    );
+}
+
+// ─── Signature modal ──────────────────────────────────────────────────────────
+
+function SignatureModal({ photo, label, onClose }: { photo: Photo; label: string; onClose: () => void }) {
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 bg-black/88 z-50 flex items-center justify-center p-6 backdrop-blur-md"
+            onClick={onClose}
+        >
+            <motion.div
+                initial={{ scale: 0.97, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.97, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="relative max-w-md w-full"
+                onClick={e => e.stopPropagation()}
+            >
+                <button
+                    onClick={onClose}
+                    className="absolute -top-10 right-0 text-white/40 hover:text-white transition-colors"
+                >
+                    <X className="size-5" />
+                </button>
+
+                <div className="rounded-xl overflow-hidden border border-white/10 bg-white p-8">
+                    <img
+                        src={photo.signature_url!}
+                        alt="Customer signature"
+                        className="w-full h-auto max-h-52 object-contain"
+                    />
+                </div>
+
+                <div className="mt-4">
+                    <p className="text-[11px] text-white/45 font-serif italic">{label} — Customer Signature</p>
+                    {photo.signature_captured_at && (
+                        <p className="text-[9px] text-white/30 font-mono mt-0.5">
+                            Captured: {fmtDate(photo.signature_captured_at)}
+                        </p>
+                    )}
+                </div>
+            </motion.div>
+        </motion.div>
+    );
+}
+
+// ─── Signature strip (orphaned signatures) ────────────────────────────────────
+
+function SignatureStrip({ photos, label }: { photos: Photo[]; label: string }) {
+    const [active, setActive] = useState<Photo | null>(null);
+
+    return (
+        <>
+            <div className="flex gap-2 flex-wrap">
+                {photos.map(photo => (
+                    <button
+                        key={photo.id}
+                        onClick={() => setActive(photo)}
+                        className="w-24 h-12 rounded-xl overflow-hidden border border-border/30 hover:border-primary/40 hover:shadow-sm transition-all cursor-pointer bg-white/95"
+                    >
+                        <img src={photo.signature_url!} alt={label} className="w-full h-full object-contain p-1.5" />
+                    </button>
+                ))}
+            </div>
+            <AnimatePresence>
+                {active !== null && (
+                    <SignatureModal photo={active} label={label} onClose={() => setActive(null)} />
+                )}
+            </AnimatePresence>
+        </>
     );
 }
 

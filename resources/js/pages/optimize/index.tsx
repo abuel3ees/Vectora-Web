@@ -12,15 +12,18 @@ type RouteOut = {
     route_index: number;
     color: string;
     node_ids: number[];
-    distance: number | null;
+    raw_distance: number | null;
+    snapped_distance: number | null;
     num_stops: number | null;
-    load: number | null;
+    raw_balance: number | null;
+    snapped_balance: number | null;
     geometry: { type: 'LineString'; coordinates: [number, number][] };
 };
 type Summary = {
     num_routes: number;
     total_distance: number;
     distance_std: number;
+    weighted_fairness: number | null;
     elapsed: number;
     valid: boolean;
     issues: string[];
@@ -69,7 +72,7 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
     const vehicleMarkersRef = useRef<mapboxgl.Marker[]>([]);
     const animRef = useRef<number | null>(null);
     const [instance, setInstance] = useState(instances[0]?.key ?? 'rioclaro');
-    const [algorithm, setAlgorithm] = useState('ortools');
+    const [algorithm, setAlgorithm] = useState('savings_parallel');
     const [k, setK] = useState(7);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -283,7 +286,7 @@ return;
         try {
             map = new mapboxgl.Map({
                 container: mapContainer.current,
-                style: 'mapbox://styles/mapbox/dark-v11',
+                style: 'mapbox://styles/mapbox/standard',
                 center: [-47.556, -22.411],
                 zoom: 1.8,
                 pitch: 0,
@@ -313,84 +316,15 @@ return;
         map.on('load', () => {
             map.resize();
 
-            // ── Deep-space atmosphere ──────────────────────────────────────────
+            // ── Standard style — night preset + minimal labels ─────────────────
             try {
-                map.setFog({
-                    color: 'rgb(8,8,12)',
-                    'high-color': 'rgb(18,18,28)',
-                    'horizon-blend': 0.06,
-                    'space-color': '#02020a',
-                    'star-intensity': 0.92,
-                } as unknown as Parameters<mapboxgl.Map['setFog']>[0]);
-            } catch { /* optional */ }
-
-            // ── Engraved cartographic colour overrides ─────────────────────────
-            // Land — almost-black with faint warm undertone (aged vellum in darkness)
-            for (const id of ['land', 'land-structure', 'national-park', 'landuse']) {
-                if (map.getLayer(id)) {
-                    try {
- map.setPaintProperty(id, 'background-color', '#0b0b10'); 
-} catch { /* */ }
-
-                    try {
- map.setPaintProperty(id, 'fill-color', '#0b0b10'); 
-} catch { /* */ }
-                }
-            }
-
-            // Water — deep inky blue-black
-            for (const id of ['water', 'water-shadow']) {
-                if (map.getLayer(id)) {
-                    try {
- map.setPaintProperty(id, 'fill-color', '#08080f'); 
-} catch { /* */ }
-                }
-            }
-
-            // Roads — very faint, barely perceptible hairlines
-            for (const id of map.getStyle()?.layers?.map(l => l.id) ?? []) {
-                if (/road|street|tunnel|bridge|motorway|path|pedestrian/.test(id)) {
-                    try {
- map.setPaintProperty(id, 'line-color', '#1e1e2e'); 
-} catch { /* */ }
-
-                    try {
- map.setPaintProperty(id, 'line-opacity', 0.45); 
-} catch { /* */ }
-                }
-            }
-
-            // Admin boundaries — off completely
-            for (const id of map.getStyle()?.layers?.map(l => l.id) ?? []) {
-                if (/admin|boundary/.test(id)) {
-                    try {
- map.setLayoutProperty(id, 'visibility', 'none'); 
-} catch { /* */ }
-                }
-            }
-
-            // ── 3D buildings ───────────────────────────────────────────────────
-            const layers = map.getStyle()?.layers ?? [];
-            const labelLayerId = layers.find(
-                (l) => l.type === 'symbol' && (l.layout as { 'text-field'?: unknown } | undefined)?.['text-field']
-            )?.id;
-
-            if (!map.getLayer('vectora-3d-buildings')) {
-                map.addLayer({
-                    id: 'vectora-3d-buildings',
-                    source: 'composite',
-                    'source-layer': 'building',
-                    filter: ['==', 'extrude', 'true'],
-                    type: 'fill-extrusion',
-                    minzoom: 13,
-                    paint: {
-                        'fill-extrusion-color': '#13131c',
-                        'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], 13, 0, 15.05, ['get', 'height']],
-                        'fill-extrusion-base': ['interpolate', ['linear'], ['zoom'], 13, 0, 15.05, ['get', 'min_height']],
-                        'fill-extrusion-opacity': 0.8,
-                    },
-                }, labelLayerId);
-            }
+                (map as unknown as { setConfigProperty: (id: string, key: string, val: unknown) => void })
+                    .setConfigProperty('basemap', 'lightPreset', 'night');
+                (map as unknown as { setConfigProperty: (id: string, key: string, val: unknown) => void })
+                    .setConfigProperty('basemap', 'showPointOfInterestLabels', false);
+                (map as unknown as { setConfigProperty: (id: string, key: string, val: unknown) => void })
+                    .setConfigProperty('basemap', 'showTransitLabels', false);
+            } catch { /* optional — degrades gracefully */ }
 
             // ── Slow globe rotation ────────────────────────────────────────────
             let bearing = 0;
@@ -495,6 +429,7 @@ map.removeSource(src);
                 map.addLayer({
                     id: `${src}-glow`,
                     type: 'line',
+                    slot: 'middle',
                     source: src,
                     layout: { 'line-cap': 'round', 'line-join': 'round' },
                     paint: {
@@ -503,11 +438,12 @@ map.removeSource(src);
                         'line-opacity': 0.18,
                         'line-blur': 8,
                     },
-                });
+                } as Parameters<mapboxgl.Map['addLayer']>[0]);
 
                 map.addLayer({
                     id: `${src}-main`,
                     type: 'line',
+                    slot: 'middle',
                     source: src,
                     layout: { 'line-cap': 'round', 'line-join': 'round' },
                     paint: {
@@ -519,11 +455,12 @@ map.removeSource(src);
                             r.color, 0, 'rgba(0,0,0,0)',
                         ],
                     },
-                });
+                } as Parameters<mapboxgl.Map['addLayer']>[0]);
 
                 map.addLayer({
                     id: `${src}-flow`,
                     type: 'line',
+                    slot: 'top',
                     source: src,
                     layout: { 'line-cap': 'round', 'line-join': 'round' },
                     paint: {
@@ -532,7 +469,7 @@ map.removeSource(src);
                         'line-opacity': 0.55,
                         'line-dasharray': [0.1, 2.2],
                     },
-                });
+                } as Parameters<mapboxgl.Map['addLayer']>[0]);
             }
 
             // --- markers: pulsing depot + numbered stops ---
@@ -872,7 +809,7 @@ return;
                 vehicle_index: r.route_index,
                 driver_id: driverId,
                 color: r.color,
-                total_distance: (r as any).raw_distance ?? r.distance ?? null,
+                total_distance: r.raw_distance ?? null,
                 num_stops: r.num_stops ?? null,
                 // Send snapped coords so the mobile map draws street-accurate markers
                 stops: [result.depot_id, ...r.node_ids.filter((n) => n !== result.depot_id), result.depot_id]
@@ -1005,7 +942,7 @@ return [];
                                 <PanelSection mark="§ ii" title="Method">
                                     <div className="flex flex-col border border-border/30 rounded-lg overflow-hidden divide-y divide-border/25">
                                         {Object.entries(algorithms).map(([key, label]) => {
-                                            const quantum = key === 'recursive' || key === 'recursive_2opt';
+                                            const quantum = key.startsWith('recursive_qaoa') || key === 'recursive';
 
                                             return (
                                                 <button
@@ -1037,12 +974,12 @@ return [];
                                 <PanelSection mark="§ iii" title={`Vehicles — ${k}`}>
                                     <div className="px-0.5">
                                         <input
-                                            type="range" min={2} max={15} value={k}
+                                            type="range" min={2} max={100} value={k}
                                             onChange={(e) => setK(parseInt(e.target.value, 10))}
                                             className="w-full accent-primary"
                                         />
                                         <div className="flex justify-between text-[7px] uppercase tracking-[0.35em] text-muted-foreground/30 mt-2">
-                                            <span>ii</span><span>xv</span>
+                                            <span>ii</span><span>c</span>
                                         </div>
                                     </div>
                                 </PanelSection>
@@ -1184,7 +1121,7 @@ return [];
                                                         {toRoman(r.route_index + 1)}
                                                     </span>
                                                     <span className="text-[8px] uppercase tracking-[0.18em] text-muted-foreground/38 tabular-nums">
-                                                        {r.num_stops}st · {r.distance?.toFixed(1) ?? '—'}km
+                                                        {r.num_stops}st · {r.raw_distance?.toFixed(1) ?? '—'}km
                                                     </span>
                                                 </div>
                                             </button>
@@ -1453,10 +1390,10 @@ return;
         try {
             const map = new mapboxgl.Map({
                 container: mapContainer.current,
-                style: 'mapbox://styles/mapbox/dark-v11',
+                style: 'mapbox://styles/mapbox/standard',
                 center: [-47.556, -22.411],
                 zoom: 11.6,
-                pitch: 32,
+                pitch: 45,
                 bearing: -18,
                 antialias: true,
                 attributionControl: false,
@@ -1466,6 +1403,15 @@ return;
 
             map.on('load', () => {
                 map.resize();
+
+                try {
+                    (map as unknown as { setConfigProperty: (id: string, key: string, val: unknown) => void })
+                        .setConfigProperty('basemap', 'lightPreset', 'night');
+                    (map as unknown as { setConfigProperty: (id: string, key: string, val: unknown) => void })
+                        .setConfigProperty('basemap', 'showPointOfInterestLabels', false);
+                    (map as unknown as { setConfigProperty: (id: string, key: string, val: unknown) => void })
+                        .setConfigProperty('basemap', 'showTransitLabels', false);
+                } catch { /* optional */ }
 
                 // Add routes as layers
                 for (const r of result.routes) {
@@ -1479,6 +1425,7 @@ return;
                     map.addLayer({
                         id: `${src}-glow`,
                         type: 'line',
+                        slot: 'middle',
                         source: src,
                         layout: { 'line-cap': 'round', 'line-join': 'round' },
                         paint: {
@@ -1487,11 +1434,12 @@ return;
                             'line-opacity': 0.18,
                             'line-blur': 6,
                         },
-                    });
+                    } as Parameters<mapboxgl.Map['addLayer']>[0]);
 
                     map.addLayer({
                         id: `${src}-main`,
                         type: 'line',
+                        slot: 'middle',
                         source: src,
                         layout: { 'line-cap': 'round', 'line-join': 'round' },
                         paint: {
@@ -1499,7 +1447,7 @@ return;
                             'line-width': 2.4,
                             'line-opacity': 0.9,
                         },
-                    });
+                    } as Parameters<mapboxgl.Map['addLayer']>[0]);
                 }
 
                 // Add markers
@@ -1528,7 +1476,7 @@ return;
 
                 map.fitBounds(
                     [[b.west, b.south], [b.east, b.north]],
-                    { padding: 40, duration: 800, pitch: 32, bearing: -18 }
+                    { padding: 40, duration: 800, pitch: 45, bearing: -18 }
                 );
             });
 

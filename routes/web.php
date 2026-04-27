@@ -16,6 +16,9 @@ Route::inertia('/', 'welcome', [
 ])->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('settings/developer', [App\Http\Controllers\AppSettingsController::class, 'developer'])->name('settings.developer');
+    Route::patch('settings/developer', [App\Http\Controllers\AppSettingsController::class, 'updateDeveloper']);
+
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('dashboard/live-locations', [DashboardController::class, 'liveLocations'])
         ->name('dashboard.live-locations');
@@ -28,6 +31,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('fleet', FleetController::class)->name('fleet');
     Route::get('analytics', AnalyticsController::class)->name('analytics');
     Route::inertia('delivery-proofs', 'DeliveryProofs')->name('delivery-proofs');
+    Route::get('delivery-proofs/photos', [DriverAssignmentController::class, 'getAllDeliveryProofs'])
+        ->name('delivery-proofs.photos');
 
     Route::get('optimize', [OptimizeController::class, 'show'])->name('optimize');
     Route::post('optimize/solve', [OptimizeController::class, 'solve'])->name('optimize.solve');
@@ -39,23 +44,28 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Dispatcher messaging
     Route::post('assignments/{assignment}/message', [App\Http\Controllers\MessageController::class, 'sendMessage'])
         ->whereNumber('assignment')
-        ->middleware('can:create,routes')
         ->name('message.send');
+    Route::get('assignments/{assignment}/messages', [App\Http\Controllers\MessageController::class, 'getAssignmentMessagesWeb'])
+        ->whereNumber('assignment')
+        ->name('message.history');
 });
 
 // Driver-facing API — consumed by the Flutter app.
 // Uses Sanctum tokens; falls back to session auth for web testing.
 
-// Public auth endpoints (no authentication required, CSRF-exempt)
+// Public app config — no auth required (used by Flutter before login)
 Route::prefix('api/driver')->withoutMiddleware('web')->group(function () {
     Route::post('login', [App\Http\Controllers\DriverAuthController::class, 'login']);
     Route::post('refresh-token', [App\Http\Controllers\DriverAuthController::class, 'refreshToken']);
+    Route::get('public-config', [App\Http\Controllers\AppSettingsController::class, 'publicConfig']);
 });
 
 // Protected driver endpoints (requires authentication, CSRF-exempt for API)
 Route::middleware(['auth:sanctum'])->prefix('api/driver')->withoutMiddleware('web')->group(function () {
     Route::get('profile', [App\Http\Controllers\DriverAuthController::class, 'profile']);
     Route::post('logout', [App\Http\Controllers\DriverAuthController::class, 'logout']);
+    Route::post('heartbeat', [App\Http\Controllers\DriverAuthController::class, 'heartbeat']);
+    Route::post('register-device', [App\Http\Controllers\DriverAuthController::class, 'registerDevice']);
 
     // Assignments (routes)
     Route::get('assignments', [DriverAssignmentController::class, 'mine']);

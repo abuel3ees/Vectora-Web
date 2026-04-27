@@ -1,7 +1,15 @@
 {
   "permissions": {
     "allow": [
-      "Bash(php -r ' *)"
+      "Bash(php -r ' *)",
+      "Bash(grep -A 30 'protected $fillable\\\\|protected $casts' /Users/abdurahmanal-essa/vrpfr/vrpfr/app/Models/DeliveryPhoto.php)",
+      "Bash(pnpm types:check)",
+      "Bash(./node_modules/.bin/tsc --noEmit --ignoreDeprecations 5.0)",
+      "Bash(./node_modules/.bin/eslint resources/js/pages/Routes/Show.tsx --max-warnings=0)",
+      "Read(//Users/abdurahmanal-essa/vrptheo/scripts/**)",
+      "Read(//Users/abdurahmanal-essa/vrptheo/arrays/**)",
+      "Read(//Users/abdurahmanal-essa/vrptheo/**)",
+      "Bash(python3 -c ' *)"
     ]
   }
 }
