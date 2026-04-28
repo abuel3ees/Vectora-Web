@@ -34,10 +34,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('delivery-proofs/photos', [DriverAssignmentController::class, 'getAllDeliveryProofs'])
         ->name('delivery-proofs.photos');
 
+    Route::get('operations', [App\Http\Controllers\OperationsController::class, 'show'])->name('operations');
+    Route::get('operations/live', [App\Http\Controllers\OperationsController::class, 'live'])->name('operations.live');
+    Route::post('operations/requeue', [App\Http\Controllers\OperationsController::class, 'requeue'])->name('operations.requeue');
+
     Route::get('optimize', [OptimizeController::class, 'show'])->name('optimize');
     Route::post('optimize/solve', [OptimizeController::class, 'solve'])->name('optimize.solve');
     Route::get('optimize/solve/{jobId}', [OptimizeController::class, 'solveStatus'])->name('optimize.solve.status');
     Route::post('optimize/dispatch', [DriverAssignmentController::class, 'store'])->name('optimize.dispatch');
+    Route::post('optimize/instances/import', [OptimizeController::class, 'importInstance'])->name('optimize.instances.import');
+    Route::delete('optimize/instances/{key}', [OptimizeController::class, 'deleteInstance'])->name('optimize.instances.delete');
     Route::inertia('optimize/algorithm-walkthrough', 'optimize/AlgorithmWalkthrough')->name('optimize.walkthrough');
     Route::get('optimize/history', [OptimizeController::class, 'history'])->name('optimize.history');
     

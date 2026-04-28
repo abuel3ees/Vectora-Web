@@ -15,10 +15,11 @@ import type { AppLayoutProps } from '@/types';
 type NavEntry = { numeral: string; label: string; href: string; italic?: boolean; nested?: boolean };
 
 const atelier: NavEntry[] = [
-    { numeral: 'i.',   label: 'Overview',  href: dashboard().url },
-    { numeral: 'ii.',  label: 'Optimize',  href: '/optimize' },
+    { numeral: 'i.',    label: 'Overview',               href: dashboard().url },
+    { numeral: 'i.a.',  label: 'Operations',             href: '/operations', italic: true, nested: true },
+    { numeral: 'ii.',   label: 'Optimize',               href: '/optimize' },
     { numeral: 'ii.a.', label: 'Algorithm Walkthrough',  href: '/optimize/algorithm-walkthrough', italic: true, nested: true },
-    { numeral: 'ii.b.', label: 'History',  href: '/optimize/history', italic: true, nested: true },
+    { numeral: 'ii.b.', label: 'History',                href: '/optimize/history', italic: true, nested: true },
 ];
 
 const registers: NavEntry[] = [

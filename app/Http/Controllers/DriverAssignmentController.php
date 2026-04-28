@@ -26,12 +26,17 @@ class DriverAssignmentController extends Controller
             'routes.*.total_distance' => ['nullable', 'numeric'],
             'routes.*.num_stops'      => ['nullable', 'integer'],
             'routes.*.stops'          => ['required', 'array', 'min:1'],
-            'routes.*.stops.*.node_id'  => ['required', 'integer'],
-            'routes.*.stops.*.lat'      => ['required', 'numeric'],
-            'routes.*.stops.*.lng'      => ['required', 'numeric'],
-            'routes.*.stops.*.snapped_lat' => ['sometimes', 'numeric'],
-            'routes.*.stops.*.snapped_lng' => ['sometimes', 'numeric'],
-            'routes.*.stops.*.is_depot'    => ['sometimes', 'boolean'],
+            'routes.*.stops.*.node_id'         => ['required', 'integer'],
+            'routes.*.stops.*.lat'             => ['required', 'numeric'],
+            'routes.*.stops.*.lng'             => ['required', 'numeric'],
+            'routes.*.stops.*.snapped_lat'     => ['sometimes', 'numeric'],
+            'routes.*.stops.*.snapped_lng'     => ['sometimes', 'numeric'],
+            'routes.*.stops.*.is_depot'        => ['sometimes', 'boolean'],
+            // Recipient metadata — optional, passed through to mobile app as-is.
+            'routes.*.stops.*.recipient_name'  => ['sometimes', 'nullable', 'string', 'max:120'],
+            'routes.*.stops.*.recipient_phone' => ['sometimes', 'nullable', 'string', 'max:30'],
+            'routes.*.stops.*.address'         => ['sometimes', 'nullable', 'string', 'max:255'],
+            'routes.*.stops.*.notes'           => ['sometimes', 'nullable', 'string', 'max:500'],
             // GeoJSON LineString coordinates [[lng,lat], ...] from OSMnx street snapping
             'routes.*.geometry'            => ['sometimes', 'nullable', 'array'],
             'routes.*.geometry.type'       => ['sometimes', 'string'],
@@ -135,15 +140,17 @@ class DriverAssignmentController extends Controller
         abort_unless($model && $model->driver_id === $request->user()->id, 403);
 
         $data = $request->validate([
-            'status' => ['required', 'in:completed,failed'],
-            'notes'  => ['nullable', 'string', 'max:1000'],
+            'status'         => ['required', 'in:completed,failed'],
+            'notes'          => ['nullable', 'string', 'max:1000'],
+            'failure_reason' => ['nullable', 'string', 'in:no_answer,wrong_address,refused,damaged,other'],
         ]);
 
         $statuses = $model->stop_statuses ?? [];
         $statuses[$stopIndex] = [
-            'status'      => $data['status'],
-            'notes'       => $data['notes'] ?? null,
-            'recorded_at' => now()->toISOString(),
+            'status'         => $data['status'],
+            'notes'          => $data['notes'] ?? null,
+            'failure_reason' => $data['failure_reason'] ?? null,
+            'recorded_at'    => now()->toISOString(),
         ];
         $model->stop_statuses = $statuses;
 

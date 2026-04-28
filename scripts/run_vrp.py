@@ -1570,7 +1570,10 @@ def load_instance(key: str):
     depot_d = payload["depot"]
     nodes_l = payload["nodes"]
     dm      = np.asarray(payload["dist_matrix"], dtype=float)
-    bbox    = payload.get("bbox", RIOCLARO_BBOX)
+    bbox    = dict(payload.get("bbox", RIOCLARO_BBOX))
+    # latlng:true means x=lng, y=lat — skip affine mapping in main().
+    if payload.get("latlng"):
+        bbox["_latlng_direct"] = True
     return depot_d, nodes_l, dm, bbox
 
 
@@ -1804,10 +1807,15 @@ def main():
     valid, issues = validate_solution(sol, {n.id for n in nodes})
 
     # Geocode every node.
+    latlng_direct = bbox.pop("_latlng_direct", False)
     all_xy  = [(depot_d["x"], depot_d["y"])] + [(n["x"], n["y"]) for n in nodes_l]
     all_ids = [depot_d["id"]] + [n["id"] for n in nodes_l]
-    latlngs = affine_to_latlng(all_xy, bbox)
-    latlng_by_id = {i: ll for i, ll in zip(all_ids, latlngs)}
+    if latlng_direct:
+        # x = longitude, y = latitude — use directly, no affine distortion.
+        latlng_by_id = {nid: (xy[1], xy[0]) for nid, xy in zip(all_ids, all_xy)}
+    else:
+        latlngs = affine_to_latlng(all_xy, bbox)
+        latlng_by_id = {i: ll for i, ll in zip(all_ids, latlngs)}
 
     G = get_graph(bbox, instance)
     snapped_by_id = get_snapped_coords(G, latlng_by_id, all_ids)
