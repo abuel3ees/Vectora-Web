@@ -2,3 +2,8 @@
 !private/
 !public/
 !.gitignore
+!vrp/
+vrp/*
+!vrp/cache/
+vrp/cache/*
+!vrp/cache/*.json

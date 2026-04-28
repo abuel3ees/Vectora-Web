@@ -21,7 +21,8 @@
       "Bash(node_modules/.bin/tsc --noEmit --ignoreDeprecations 5.0)",
       "Bash(python3 -c \"import json; d=json.load\\(open\\('/Users/abdurahmanal-essa/vrpfr/vrpfr/scripts/instances/amman_50.json'\\)\\); print\\('keys:', list\\(d.keys\\(\\)\\)\\); print\\('nodes count:', len\\(d['nodes']\\)\\); print\\('depot:', d['depot']\\); print\\('latlng:', d.get\\('latlng'\\)\\); print\\('bbox:', d['bbox']\\); print\\('first node:', d['nodes'][0]\\)\")",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('require',{}\\), indent=2\\)\\)\")",
-      "Bash(chmod +x /Users/abdurahmanal-essa/vrpfr/vrpfr/deploy/server-setup.sh /Users/abdurahmanal-essa/vrpfr/vrpfr/deploy/deploy.sh /Users/abdurahmanal-essa/vrpfr/vrpfr/deploy/sync-cache.sh)"
+      "Bash(chmod +x /Users/abdurahmanal-essa/vrpfr/vrpfr/deploy/server-setup.sh /Users/abdurahmanal-essa/vrpfr/vrpfr/deploy/deploy.sh /Users/abdurahmanal-essa/vrpfr/vrpfr/deploy/sync-cache.sh)",
+      "Bash(git check-ignore *)"
     ]
   }
 }
