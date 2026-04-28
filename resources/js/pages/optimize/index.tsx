@@ -91,6 +91,11 @@ export default function OptimizePage({ instances, algorithms, algorithmGroups, m
     const [raceEntries, setRaceEntries] = useState<Record<string, RaceEntry>>({});
     const comparisonAbortRef = useRef<boolean>(false);
 
+    // Pre-cache mode
+    const [precaching, setPrecaching] = useState(false);
+    const [precacheProgress, setPrecacheProgress] = useState<{ done: number; total: number; current: string } | null>(null);
+    const precacheAbortRef = useRef(false);
+
     // Import modal state
     const [importOpen, setImportOpen] = useState(false);
     const [importName, setImportName] = useState('');
@@ -136,12 +141,26 @@ export default function OptimizePage({ instances, algorithms, algorithmGroups, m
     // In-memory cache: `${instance}:${k}:${algorithm}` → SolveResult
     const solveCache = useRef<Map<string, SolveResult>>(new Map());
 
+    // Hydrate from localStorage on mount so comparison is instant after a page reload
+    useEffect(() => {
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key?.startsWith('vrp:')) {
+                try {
+                    const raw = localStorage.getItem(key);
+                    if (raw) solveCache.current.set(key.slice(4), JSON.parse(raw) as SolveResult);
+                } catch { /* ignore corrupt entries */ }
+            }
+        }
+    }, []);
+
     const mapContainer = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<mapboxgl.Map | null>(null);
     const markersRef = useRef<mapboxgl.Marker[]>([]);
     const dashAnimRef = useRef<number | null>(null);
     const revealAnimRef = useRef<number | null>(null);
     const globeRotateRef = useRef<number | null>(null);
+    const nodeLayerHandlersAdded = useRef(false);
 
     const csrf = () =>
         (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement | null)?.content ?? '';
@@ -195,7 +214,9 @@ return;
                 if (json.status === 'done') {
                     console.info('[optimize] solve done — routes:', json.result?.routes?.length, 'setting result + collapsing config');
                     const solved = json.result as SolveResult;
-                    solveCache.current.set(`${solved.instance}:${solved.summary.num_routes}:${solved.algorithm}`, solved);
+                    const ck = `${solved.instance}:${solved.summary.num_routes}:${solved.algorithm}`;
+                    solveCache.current.set(ck, solved);
+                    try { localStorage.setItem(`vrp:${ck}`, JSON.stringify(solved)); } catch { /* quota */ }
                     setResult(solved);
                     setLoading(false);
                     setProgress(null);
@@ -320,6 +341,7 @@ setProgress(json.progress);
                     if (statusRes.ok && statusJson.ok && statusJson.status === 'done') {
                         const solved = statusJson.result as SolveResult;
                         solveCache.current.set(cacheKey, solved);
+                        try { localStorage.setItem(`vrp:${cacheKey}`, JSON.stringify(solved)); } catch { /* quota */ }
                         setRaceEntries(prev => ({
                             ...prev,
                             [algo]: { status: 'done', result: solved, startedAt: prev[algo]?.startedAt ?? Date.now(), finishedAt: Date.now() },
@@ -348,6 +370,56 @@ setProgress(json.progress);
     const cancelComparison = () => {
         comparisonAbortRef.current = true;
         setComparing(false);
+    };
+
+    const precacheAll = async () => {
+        setPrecaching(true);
+        precacheAbortRef.current = false;
+        const algoList = Object.keys(algorithms);
+        setPrecacheProgress({ done: 0, total: algoList.length, current: '' });
+
+        for (let i = 0; i < algoList.length; i++) {
+            if (precacheAbortRef.current) break;
+            const algo = algoList[i];
+            const cacheKey = `${instance}:${k}:${algo}`;
+            setPrecacheProgress({ done: i, total: algoList.length, current: algorithms[algo] });
+
+            if (solveCache.current.has(cacheKey)) continue;
+
+            try {
+                const res = await fetch('/optimize/solve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrf() },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ instance, k, algorithm: algo }),
+                });
+                const json = await res.json();
+                if (!res.ok || !json.ok) continue;
+
+                let attempts = 0;
+                while (attempts < 600 && !precacheAbortRef.current) {
+                    const sr = await fetch(`/optimize/solve/${json.job_id}`, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
+                    const sj = await sr.json();
+                    if (sr.ok && sj.ok && sj.status === 'done') {
+                        const solved = sj.result as SolveResult;
+                        solveCache.current.set(cacheKey, solved);
+                        try { localStorage.setItem(`vrp:${cacheKey}`, JSON.stringify(solved)); } catch { /* quota */ }
+                        break;
+                    } else if (!sr.ok || !sj.ok) break;
+                    await new Promise(r => setTimeout(r, 2000));
+                    attempts++;
+                }
+            } catch { /* continue to next */ }
+        }
+
+        setPrecaching(false);
+        setPrecacheProgress(null);
+    };
+
+    const cancelPrecache = () => {
+        precacheAbortRef.current = true;
+        setPrecaching(false);
+        setPrecacheProgress(null);
     };
 
     // When auto dispatch is on, assign drivers fairly as soon as a result arrives.
@@ -563,6 +635,12 @@ m.remove();
 
             markersRef.current = [];
 
+            // Remove GPU node layers from previous result
+            for (const layerId of ['nodes-labels', 'nodes-circle']) {
+                if (map.getLayer(layerId)) map.removeLayer(layerId);
+            }
+            if (map.getSource('nodes-stops')) map.removeSource('nodes-stops');
+
             for (const r of result.routes) {
                 for (const suffix of ['glow', 'main', 'flow']) {
                     const id = `route-${r.route_index}-${suffix}`;
@@ -628,29 +706,85 @@ map.removeSource(src);
                 });
             }
 
-            // --- markers: pulsing depot + numbered stops ---
-            for (const n of result.nodes) {
+            // --- Depot: one DOM marker with pulse (single element, no perf cost) ---
+            const depotNode = result.nodes.find(n => n.is_depot);
+            if (depotNode) {
                 const el = document.createElement('div');
+                el.style.cssText = 'position:relative;width:18px;height:18px;';
+                el.innerHTML = `
+                    <span style="position:absolute;inset:-8px;border-radius:9999px;background:rgba(255,255,255,0.12);animation:vx-pulse 2s ease-out infinite;"></span>
+                    <span style="position:absolute;inset:-4px;border-radius:9999px;background:rgba(255,255,255,0.18);animation:vx-pulse 2s ease-out infinite .6s;"></span>
+                    <span style="position:absolute;inset:0;border-radius:9999px;background:#fff;box-shadow:0 0 14px rgba(255,255,255,0.8);display:flex;align-items:center;justify-content:center;color:#0a0a0f;font-family:'Instrument Serif',serif;font-style:italic;font-size:11px;">D</span>
+                `;
+                markersRef.current.push(
+                    new mapboxgl.Marker({ element: el })
+                        .setLngLat([depotNode.lng, depotNode.lat])
+                        .setPopup(new mapboxgl.Popup({ offset: 14, closeButton: false }).setText(`Depot · #${depotNode.id}`))
+                        .addTo(map)
+                );
+            }
 
-                if (n.is_depot) {
-                    el.style.cssText = 'position:relative;width:18px;height:18px;';
-                    el.innerHTML = `
-                        <span style="position:absolute;inset:-8px;border-radius:9999px;background:rgba(255,255,255,0.12);animation:vx-pulse 2s ease-out infinite;"></span>
-                        <span style="position:absolute;inset:-4px;border-radius:9999px;background:rgba(255,255,255,0.18);animation:vx-pulse 2s ease-out infinite .6s;"></span>
-                        <span style="position:absolute;inset:0;border-radius:9999px;background:#fff;box-shadow:0 0 14px rgba(255,255,255,0.8);display:flex;align-items:center;justify-content:center;color:#0a0a0f;font-family:'Instrument Serif',serif;font-style:italic;font-size:11px;">D</span>
-                    `;
-                } else {
-                    el.style.cssText = 'width:22px;height:22px;border-radius:9999px;background:rgba(20,20,28,0.85);border:1px solid rgba(255,255,255,0.35);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.9);font-family:\"Instrument Serif\",serif;font-style:italic;font-size:11px;box-shadow:0 2px 8px rgba(0,0,0,0.4);';
-                    el.textContent = String(n.id);
-                }
+            // --- Stop nodes: GPU-rendered GeoJSON layer (handles 500+ nodes without lag) ---
+            map.addSource('nodes-stops', {
+                type: 'geojson',
+                data: {
+                    type: 'FeatureCollection',
+                    features: result.nodes
+                        .filter(n => !n.is_depot)
+                        .map(n => ({
+                            type: 'Feature' as const,
+                            geometry: { type: 'Point' as const, coordinates: [n.lng, n.lat] as [number, number] },
+                            properties: { id: n.id },
+                        })),
+                },
+            });
 
-                const marker = new mapboxgl.Marker({ element: el })
-                    .setLngLat([n.lng, n.lat])
-                    .setPopup(new mapboxgl.Popup({ offset: 14, closeButton: false })
-                        .setText(n.is_depot ? `Depot · #${n.id}` : `Stop · #${n.id}`))
-                    .addTo(map);
+            map.addLayer({
+                id: 'nodes-circle',
+                type: 'circle',
+                source: 'nodes-stops',
+                paint: {
+                    'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 2.5, 13, 4.5, 18, 7] as unknown as number,
+                    'circle-color': 'rgba(14,14,22,0.9)',
+                    'circle-stroke-width': 1,
+                    'circle-stroke-color': 'rgba(255,255,255,0.35)',
+                    'circle-opacity': 1,
+                },
+            });
 
-                markersRef.current.push(marker);
+            // Labels only appear when zoomed in enough to be readable
+            map.addLayer({
+                id: 'nodes-labels',
+                type: 'symbol',
+                source: 'nodes-stops',
+                minzoom: 14,
+                layout: {
+                    'text-field': ['to-string', ['get', 'id']],
+                    'text-size': 9,
+                    'text-font': ['DIN Offc Pro Italic', 'Arial Unicode MS Regular'],
+                    'text-allow-overlap': true,
+                    'text-ignore-placement': true,
+                } as unknown as mapboxgl.SymbolLayout,
+                paint: {
+                    'text-color': 'rgba(255,255,255,0.9)',
+                    'text-halo-color': 'rgba(0,0,0,0.6)',
+                    'text-halo-width': 1,
+                },
+            });
+
+            // Click popup + cursor — registered once for the lifetime of the map
+            if (!nodeLayerHandlersAdded.current) {
+                nodeLayerHandlersAdded.current = true;
+                map.on('click', 'nodes-circle', (e) => {
+                    if (!e.features?.[0] || e.features[0].geometry.type !== 'Point') return;
+                    const [lng, lat] = e.features[0].geometry.coordinates as [number, number];
+                    new mapboxgl.Popup({ offset: 14, closeButton: false })
+                        .setLngLat([lng, lat])
+                        .setText(`Stop · #${e.features[0].properties?.id}`)
+                        .addTo(map);
+                });
+                map.on('mouseenter', 'nodes-circle', () => { map.getCanvas().style.cursor = 'pointer'; });
+                map.on('mouseleave', 'nodes-circle', () => { map.getCanvas().style.cursor = ''; });
             }
 
             // --- cinematic globe → city fly-down ---
@@ -1172,16 +1306,56 @@ return [];
                                     </div>
                                 </PanelSection>
 
-                                <PanelSection mark="§ iii" title={`Vehicles — ${k}`}>
-                                    <div className="px-0.5">
-                                        <input
-                                            type="range" min={2} max={100} value={k}
-                                            onChange={(e) => setK(parseInt(e.target.value, 10))}
-                                            className="w-full accent-primary"
-                                        />
-                                        <div className="flex justify-between text-[7px] uppercase tracking-[0.35em] text-muted-foreground/30 mt-2">
-                                            <span>ii</span><span>c</span>
+                                <PanelSection mark="§ iii" title="Vehicles">
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => setK(Math.max(2, k - 1))}
+                                            disabled={k <= 2}
+                                            className={cn(
+                                                'flex items-center justify-center w-8 h-8 rounded border transition-all',
+                                                k <= 2
+                                                    ? 'border-border/15 text-muted-foreground/20 cursor-not-allowed'
+                                                    : 'border-border/25 text-muted-foreground/50 hover:border-primary/40 hover:text-primary/60'
+                                            )}
+                                        >
+                                            −
+                                        </button>
+                                        
+                                        <div className="flex-1">
+                                            <input
+                                                type="number"
+                                                min={2}
+                                                max={100}
+                                                value={k}
+                                                onChange={(e) => {
+                                                    const val = parseInt(e.target.value, 10);
+                                                    if (!isNaN(val) && val >= 2 && val <= 100) {
+                                                        setK(val);
+                                                    }
+                                                }}
+                                                className="w-full px-3 py-2 text-center border border-border/25 rounded bg-transparent font-display text-lg focus:outline-none focus:border-primary/50 transition-colors"
+                                            />
                                         </div>
+                                        
+                                        <button
+                                            type="button"
+                                            onClick={() => setK(Math.min(100, k + 1))}
+                                            disabled={k >= 100}
+                                            className={cn(
+                                                'flex items-center justify-center w-8 h-8 rounded border transition-all',
+                                                k >= 100
+                                                    ? 'border-border/15 text-muted-foreground/20 cursor-not-allowed'
+                                                    : 'border-border/25 text-muted-foreground/50 hover:border-primary/40 hover:text-primary/60'
+                                            )}
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+                                    
+                                    <div className="flex justify-between text-[7px] uppercase tracking-[0.35em] text-muted-foreground/25 mt-2">
+                                        <span>min 2</span>
+                                        <span>max 100</span>
                                     </div>
                                 </PanelSection>
 
@@ -1221,25 +1395,41 @@ return [];
                                     <button
                                         type="button"
                                         onClick={comparing ? cancelComparison : compareAllAlgorithms}
-                                        disabled={loading}
+                                        disabled={loading || precaching}
                                         className="w-full h-9 border border-border/30 rounded-lg font-display text-xs tracking-tight text-muted-foreground/55 transition-all hover:border-border/50 hover:text-muted-foreground disabled:opacity-40 flex items-center justify-center gap-2"
                                     >
                                         {comparing && <Spinner />}
                                         <span>{comparing ? 'Cancel' : 'Compare all methods'}</span>
                                     </button>
+                                    <button
+                                        type="button"
+                                        onClick={precaching ? cancelPrecache : precacheAll}
+                                        disabled={loading || comparing}
+                                        className="w-full h-9 border border-border/30 rounded-lg font-display text-xs tracking-tight text-muted-foreground/55 transition-all hover:border-border/50 hover:text-muted-foreground disabled:opacity-40 flex items-center justify-center gap-2"
+                                    >
+                                        {precaching && <Spinner />}
+                                        <span>{precaching ? 'Cancel' : 'Pre-cache all algorithms'}</span>
+                                    </button>
                                 </div>
 
-                                {(loading || comparing) && (
+                                {(loading || comparing || precaching) && (
                                     <div className="flex items-center gap-3 border-l-2 border-primary/40 pl-3 py-0.5">
                                         <span className="h-1 w-1 rounded-full bg-primary animate-pulse shrink-0" />
                                         <div className="min-w-0">
-                                            <div className="text-[7px] uppercase tracking-[0.4em] text-primary/70">{comparing ? 'Race' : 'Computing'}</div>
+                                            <div className="text-[7px] uppercase tracking-[0.4em] text-primary/70">
+                                                {comparing ? 'Race' : precaching ? 'Pre-cache' : 'Computing'}
+                                            </div>
                                             {comparing && Object.keys(raceEntries).length > 0 && (
                                                 <div className="text-[9px] font-serif italic text-muted-foreground/45 truncate mt-0.5">
                                                     {Object.values(raceEntries).filter(e => e.status === 'done').length}/{Object.keys(raceEntries).length} finished
                                                 </div>
                                             )}
-                                            {progress && !comparing && (
+                                            {precaching && precacheProgress && (
+                                                <div className="text-[9px] font-serif italic text-muted-foreground/45 truncate mt-0.5">
+                                                    {precacheProgress.done}/{precacheProgress.total} · {precacheProgress.current}
+                                                </div>
+                                            )}
+                                            {progress && !comparing && !precaching && (
                                                 <div className="text-[9px] font-serif italic text-muted-foreground/45 truncate mt-0.5">{progress}</div>
                                             )}
                                         </div>
@@ -1380,13 +1570,7 @@ return [];
                                                     [r.route_index]: e.target.value ? parseInt(e.target.value, 10) : '',
                                                 }))}
                                                 onClick={(e) => e.stopPropagation()}
-                                                className="text-[10px] border border-border/25 rounded bg-transparent font-display focus:outline-none focus:border-border/50 px-1.5 py-1 w-20 shrink-0 text-muted-foreground/60"
-                                            >
-                                                <option value="">— driver</option>
-                                                {drivers.map((d) => (
-                                                    <option key={d.id} value={d.id}>{d.name.split(' ')[0]}</option>
-                                                ))}
-                                            </select>
+                                            />
 
                                             {/* Visibility toggle */}
                                             <button
@@ -1751,26 +1935,40 @@ return;
                     });
                 }
 
-                // Add markers
-                for (const n of result.nodes) {
+                // Depot: single DOM marker
+                const depot = result.nodes.find(n => n.is_depot);
+                if (depot) {
                     const el = document.createElement('div');
-
-                    if (n.is_depot) {
-                        el.style.cssText = 'position:relative;width:14px;height:14px;';
-                        el.innerHTML = `
-                            <span style="position:absolute;inset:0;border-radius:9999px;background:#fff;box-shadow:0 0 10px rgba(255,255,255,0.6);display:flex;align-items:center;justify-content:center;color:#0a0a0f;font-family:'Instrument Serif',serif;font-style:italic;font-size:8px;">D</span>
-                        `;
-                    } else {
-                        el.style.cssText = 'width:16px;height:16px;border-radius:9999px;background:rgba(20,20,28,0.8);border:0.5px solid rgba(255,255,255,0.3);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.8);font-family:"Instrument Serif",serif;font-style:italic;font-size:8px;';
-                        el.textContent = String(n.id);
-                    }
-
-                    const marker = new mapboxgl.Marker({ element: el })
-                        .setLngLat([n.lng, n.lat])
-                        .addTo(map);
-
-                    markersRef.current.push(marker);
+                    el.style.cssText = 'position:relative;width:14px;height:14px;';
+                    el.innerHTML = `<span style="position:absolute;inset:0;border-radius:9999px;background:#fff;box-shadow:0 0 10px rgba(255,255,255,0.6);display:flex;align-items:center;justify-content:center;color:#0a0a0f;font-family:'Instrument Serif',serif;font-style:italic;font-size:8px;">D</span>`;
+                    markersRef.current.push(new mapboxgl.Marker({ element: el }).setLngLat([depot.lng, depot.lat]).addTo(map));
                 }
+
+                // Stop nodes: GPU circle layer
+                map.addSource('nodes-stops', {
+                    type: 'geojson',
+                    data: {
+                        type: 'FeatureCollection',
+                        features: result.nodes
+                            .filter(n => !n.is_depot)
+                            .map(n => ({
+                                type: 'Feature' as const,
+                                geometry: { type: 'Point' as const, coordinates: [n.lng, n.lat] as [number, number] },
+                                properties: { id: n.id },
+                            })),
+                    },
+                });
+                map.addLayer({
+                    id: 'nodes-circle',
+                    type: 'circle',
+                    source: 'nodes-stops',
+                    paint: {
+                        'circle-radius': 3,
+                        'circle-color': 'rgba(14,14,22,0.9)',
+                        'circle-stroke-width': 0.8,
+                        'circle-stroke-color': 'rgba(255,255,255,0.32)',
+                    },
+                });
 
                 // Fit to bounds
                 const b = result.bbox;
