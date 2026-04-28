@@ -153,6 +153,40 @@ class OptimizeController extends Controller
             'force'     => ['sometimes', 'boolean'],
         ]);
 
+        $instance  = $data['instance'];
+        $k         = (int) $data['k'];
+        $algorithm = $data['algorithm'];
+        $force     = (bool) ($data['force'] ?? false);
+
+        // Check the file cache before spawning Python — same hash Python uses.
+        if (! $force) {
+            $cacheJson = '{"a": ' . json_encode($algorithm) . ', "i": ' . json_encode($instance) . ', "k": ' . $k . '}';
+            $cacheHash = substr(sha1($cacheJson), 0, 16);
+            $cachePath = storage_path("app/vrp/cache/{$cacheHash}.json");
+
+            if (is_file($cachePath)) {
+                $decoded = json_decode(file_get_contents($cachePath), true);
+                if (is_array($decoded)) {
+                    OptimizationHistory::create([
+                        'user_id'        => auth()->id(),
+                        'instance'       => $instance,
+                        'k'              => $k,
+                        'algorithm'      => $algorithm,
+                        'num_routes'     => $decoded['summary']['num_routes'] ?? 0,
+                        'total_distance' => $decoded['summary']['total_distance'] ?? null,
+                        'distance_std'   => $decoded['summary']['distance_std'] ?? null,
+                        'elapsed'        => $decoded['summary']['elapsed'] ?? null,
+                        'valid'          => $decoded['summary']['valid'] ?? false,
+                        'issues'         => count($decoded['summary']['issues'] ?? []) > 0
+                            ? implode('; ', $decoded['summary']['issues']) : null,
+                        'result'         => $decoded,
+                    ]);
+
+                    return response()->json(['ok' => true, 'status' => 'done', 'result' => $decoded]);
+                }
+            }
+        }
+
         $jobId  = bin2hex(random_bytes(8));
         $dir    = storage_path('app/vrp/jobs');
         @mkdir($dir, 0775, true);

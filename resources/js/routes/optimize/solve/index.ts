@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../wayfinder'
 /**
 * @see \App\Http\Controllers\OptimizeController::status
-* @see app/Http/Controllers/OptimizeController.php:181
+* @see app/Http/Controllers/OptimizeController.php:215
 * @route '/optimize/solve/{jobId}'
 */
 export const status = (args: { jobId: string | number } | [jobId: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -16,7 +16,7 @@ status.definition = {
 
 /**
 * @see \App\Http\Controllers\OptimizeController::status
-* @see app/Http/Controllers/OptimizeController.php:181
+* @see app/Http/Controllers/OptimizeController.php:215
 * @route '/optimize/solve/{jobId}'
 */
 status.url = (args: { jobId: string | number } | [jobId: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -43,7 +43,7 @@ status.url = (args: { jobId: string | number } | [jobId: string | number ] | str
 
 /**
 * @see \App\Http\Controllers\OptimizeController::status
-* @see app/Http/Controllers/OptimizeController.php:181
+* @see app/Http/Controllers/OptimizeController.php:215
 * @route '/optimize/solve/{jobId}'
 */
 status.get = (args: { jobId: string | number } | [jobId: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -53,7 +53,7 @@ status.get = (args: { jobId: string | number } | [jobId: string | number ] | str
 
 /**
 * @see \App\Http\Controllers\OptimizeController::status
-* @see app/Http/Controllers/OptimizeController.php:181
+* @see app/Http/Controllers/OptimizeController.php:215
 * @route '/optimize/solve/{jobId}'
 */
 status.head = (args: { jobId: string | number } | [jobId: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -63,7 +63,7 @@ status.head = (args: { jobId: string | number } | [jobId: string | number ] | st
 
 /**
 * @see \App\Http\Controllers\OptimizeController::status
-* @see app/Http/Controllers/OptimizeController.php:181
+* @see app/Http/Controllers/OptimizeController.php:215
 * @route '/optimize/solve/{jobId}'
 */
 const statusForm = (args: { jobId: string | number } | [jobId: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -73,7 +73,7 @@ const statusForm = (args: { jobId: string | number } | [jobId: string | number ]
 
 /**
 * @see \App\Http\Controllers\OptimizeController::status
-* @see app/Http/Controllers/OptimizeController.php:181
+* @see app/Http/Controllers/OptimizeController.php:215
 * @route '/optimize/solve/{jobId}'
 */
 statusForm.get = (args: { jobId: string | number } | [jobId: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -83,7 +83,7 @@ statusForm.get = (args: { jobId: string | number } | [jobId: string | number ] |
 
 /**
 * @see \App\Http\Controllers\OptimizeController::status
-* @see app/Http/Controllers/OptimizeController.php:181
+* @see app/Http/Controllers/OptimizeController.php:215
 * @route '/optimize/solve/{jobId}'
 */
 statusForm.head = (args: { jobId: string | number } | [jobId: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({

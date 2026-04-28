@@ -270,6 +270,19 @@ setProgress(json.progress);
                 return;
             }
 
+            // Cache hit: server returned the result immediately, no polling needed.
+            if (json.status === 'done' && json.result) {
+                const solved = json.result as SolveResult;
+                const ck = `${solved.instance}:${solved.summary.num_routes}:${solved.algorithm}`;
+                solveCache.current.set(ck, solved);
+                try { localStorage.setItem(`vrp:${ck}`, JSON.stringify(solved)); } catch { /* quota */ }
+                setResult(solved);
+                setLoading(false);
+                setProgress(null);
+                setConfigOpen(false);
+                return;
+            }
+
             pollJob(json.job_id);
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : String(e));
@@ -325,6 +338,22 @@ setProgress(json.progress);
 
                 if (!res.ok || !json.ok) {
                     setRaceEntries(prev => ({ ...prev, [algo]: { ...prev[algo], status: 'failed', finishedAt: Date.now() } }));
+                    continue;
+                }
+
+                // Cache hit — server returned result immediately, no polling needed.
+                if (json.status === 'done' && json.result) {
+                    const solved = json.result as SolveResult;
+                    solveCache.current.set(cacheKey, solved);
+
+                    try {
+                        localStorage.setItem(`vrp:${cacheKey}`, JSON.stringify(solved));
+                    } catch { /* quota */ }
+
+                    setRaceEntries(prev => ({
+                        ...prev,
+                        [algo]: { status: 'done', result: solved, startedAt: prev[algo]?.startedAt ?? Date.now(), finishedAt: Date.now() },
+                    }));
                     continue;
                 }
 
