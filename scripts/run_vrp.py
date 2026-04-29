@@ -1767,15 +1767,20 @@ def main():
     k         = int(req.get("k", 7))
     algorithm = req.get("algorithm", "savings_parallel")
 
+    print(f"[VRP] Starting optimization: instance={instance}, k={k}, algorithm={algorithm}", file=sys.stderr)
+
     key_hash = hashlib.sha1(
         json.dumps({"i": instance, "k": k, "a": algorithm}, sort_keys=True).encode()
     ).hexdigest()[:16]
     cache_file = CACHE_DIR / "cache" / f"{key_hash}.json"
     if cache_file.exists() and not req.get("force"):
+        print(f"[VRP] Cache hit: {key_hash}", file=sys.stderr)
         sys.stdout.write(cache_file.read_text())
         return
 
+    print(f"[VRP] Loading instance: {instance}", file=sys.stderr)
     depot_d, nodes_l, dm, bbox = load_instance(instance)
+    print(f"[VRP] Instance loaded: {len(nodes_l)} nodes, depot={depot_d['id']}", file=sys.stderr)
 
     # Build Node objects.
     depot_node = Node(id=depot_d["id"], x=depot_d["x"], y=depot_d["y"], demand=0.0)
@@ -1785,6 +1790,7 @@ def main():
     node_map   = {n.id: n for n in nodes}
 
     # Build distance map (also initialises GLOBAL_MAX_DIST).
+    print(f"[VRP] Building distance matrix ({len(nodes)}×{len(nodes)})", file=sys.stderr)
     dist_map = build_dist_map(nodes, depot_node, dm.tolist())
 
     # Select algorithm.
@@ -1794,9 +1800,11 @@ def main():
               f"falling back to savings_parallel", file=sys.stderr)
         algo_fn = algo_savings_parallel
 
+    print(f"[VRP] Starting solve with algorithm: {algorithm}", file=sys.stderr)
     t0  = time.perf_counter()
     sol = algo_fn(nodes, k, depot_node, dist_map, node_map)
     elapsed = time.perf_counter() - t0
+    print(f"[VRP] Solve completed in {elapsed:.2f}s, routes={len(sol.routes)}", file=sys.stderr)
 
     # OR-Tools can return None if it fails to find a feasible solution.
     if sol is None:
@@ -1805,21 +1813,29 @@ def main():
         sol = algo_savings_parallel(nodes, k, depot_node, dist_map, node_map)
 
     valid, issues = validate_solution(sol, {n.id for n in nodes})
+    print(f"[VRP] Solution validated: valid={valid}, issues={len(issues)}", file=sys.stderr)
 
     # Geocode every node.
+    print(f"[VRP] Geocoding {len(all_ids)} nodes", file=sys.stderr)
     latlng_direct = bbox.pop("_latlng_direct", False)
     all_xy  = [(depot_d["x"], depot_d["y"])] + [(n["x"], n["y"]) for n in nodes_l]
     all_ids = [depot_d["id"]] + [n["id"] for n in nodes_l]
     if latlng_direct:
         # x = longitude, y = latitude — use directly, no affine distortion.
+        print(f"[VRP] Using direct lat/lng coordinates", file=sys.stderr)
         latlng_by_id = {nid: (xy[1], xy[0]) for nid, xy in zip(all_ids, all_xy)}
     else:
+        print(f"[VRP] Applying affine transform to lat/lng", file=sys.stderr)
         latlngs = affine_to_latlng(all_xy, bbox)
         latlng_by_id = {i: ll for i, ll in zip(all_ids, latlngs)}
 
+    print(f"[VRP] Fetching OSM graph for street routing", file=sys.stderr)
     G = get_graph(bbox, instance)
+    print(f"[VRP] Snapping {len(all_ids)} nodes to street graph", file=sys.stderr)
     snapped_by_id = get_snapped_coords(G, latlng_by_id, all_ids)
+    print(f"[VRP] Snapping completed: {len(snapped_by_id)} snapped nodes", file=sys.stderr)
 
+    print(f"[VRP] Building output routes geometry", file=sys.stderr)
     routes_out = []
     for idx, r in enumerate(sol.routes):
         if not r.node_ids:
@@ -1880,8 +1896,11 @@ def main():
         "routes":   routes_out,
     }
 
+    print(f"[VRP] Finalizing output payload ({len(routes_out)} routes, {len(nodes_out)} nodes)", file=sys.stderr)
     if G is not None:
         cache_file.write_text(json.dumps(payload))
+        print(f"[VRP] Cached result to {cache_file}", file=sys.stderr)
+    print(f"[VRP] Optimization complete - writing result to stdout", file=sys.stderr)
     sys.stdout.write(json.dumps(payload))
     sys.stdout.flush()
 

@@ -64,7 +64,94 @@ type PageProps = {
     drivers: Driver[];
 };
 
-export default function OptimizePage({ instances, algorithms, algorithmGroups, mapboxToken, drivers }: PageProps) {
+const VEHICLE_RECOMMENDATIONS: Record<number, number> = {
+    50: 15,
+    100: 30,
+    200: 30,
+    500: 30,
+    1000: 45,
+};
+
+type AlgoVariant = { key: string; label: string };
+type AlgoFamily  = { name: string; variants: AlgoVariant[] };
+
+const ALGO_FAMILY_GROUPS: { group: string; isQuantum?: boolean; families: AlgoFamily[] }[] = [
+    {
+        group: 'Construction',
+        families: [
+            { name: 'Nearest neighbour', variants: [
+                { key: 'nearest_neighbour',      label: 'plain'   },
+                { key: 'nearest_neighbour_2opt', label: '+2-opt'  },
+            ] },
+            { name: 'Sweep', variants: [
+                { key: 'sweep',      label: 'plain'  },
+                { key: 'sweep_2opt', label: '+2-opt' },
+            ] },
+            { name: 'Clarke–Wright', variants: [
+                { key: 'savings_parallel',        label: 'par'      },
+                { key: 'savings_parallel_2opt',   label: 'par+2opt' },
+                { key: 'savings_parallel_oropt',  label: 'par+or'   },
+                { key: 'savings_sequential',      label: 'seq'      },
+                { key: 'savings_sequential_2opt', label: 'seq+2opt' },
+            ] },
+            { name: 'Nearest insertion', variants: [
+                { key: 'nearest_insertion',      label: 'plain'  },
+                { key: 'nearest_insertion_2opt', label: '+2-opt' },
+            ] },
+            { name: 'Farthest insertion', variants: [
+                { key: 'farthest_insertion',      label: 'plain'  },
+                { key: 'farthest_insertion_2opt', label: '+2-opt' },
+            ] },
+            { name: 'Cheapest insertion', variants: [
+                { key: 'cheapest_insertion',      label: 'plain'  },
+                { key: 'cheapest_insertion_2opt', label: '+2-opt' },
+            ] },
+        ],
+    },
+    {
+        group: 'Metaheuristics',
+        families: [
+            { name: 'Simulated annealing',   variants: [{ key: 'simulated_annealing',   label: 'SA'   }] },
+            { name: 'Tabu search',           variants: [{ key: 'tabu_search',           label: 'Tabu' }] },
+            { name: 'Iterated local search', variants: [{ key: 'iterated_local_search', label: 'ILS'  }] },
+            { name: 'Genetic algorithm',     variants: [{ key: 'genetic',               label: 'GA'   }] },
+        ],
+    },
+    {
+        group: 'OR-Tools',
+        families: [
+            { name: 'OR-Tools', variants: [
+                { key: 'ortools_gls',              label: 'GLS'        },
+                { key: 'ortools_sa',               label: 'SA'         },
+                { key: 'ortools_tabu',             label: 'Tabu'       },
+                { key: 'ortools_pca',              label: 'PCA'        },
+                { key: 'ortools_savings',          label: 'Savings'    },
+                { key: 'ortools_christofides',     label: 'Christof.'  },
+                { key: 'ortools_parallel_cheapest',label: 'Par. cheap' },
+            ] },
+        ],
+    },
+    {
+        group: 'Quantum',
+        isQuantum: true,
+        families: [
+            { name: 'Recursive QAOA', variants: [
+                { key: 'recursive_qaoa',       label: 'plain'  },
+                { key: 'recursive_qaoa_2opt',  label: '+2-opt' },
+            ] },
+        ],
+    },
+];
+
+
+const VEHICLE_CONFIRMATION_PHRASE = 'yes i want to';
+const MIN_VEHICLES = 2;
+const MAX_VEHICLES = 100;
+
+const recommendedVehiclesForSize = (size: number) => VEHICLE_RECOMMENDATIONS[size] ?? null;
+const clampVehicles = (value: number) => Math.min(MAX_VEHICLES, Math.max(MIN_VEHICLES, value));
+
+export default function OptimizePage({ instances, algorithms, mapboxToken, drivers }: PageProps) {
     const [assignments, setAssignments] = useState<Record<number, number | ''>>({});
     const [dispatching, setDispatching] = useState(false);
     const [dispatchMsg, setDispatchMsg] = useState<string | null>(null);
@@ -79,9 +166,10 @@ export default function OptimizePage({ instances, algorithms, algorithmGroups, m
     const elapsedRef = useRef<number>(0);
     const vehicleMarkersRef = useRef<mapboxgl.Marker[]>([]);
     const animRef = useRef<number | null>(null);
-    const [instance, setInstance] = useState(instances[0]?.key ?? 'rioclaro');
+    const initialInstanceKey = instances[0]?.key ?? 'rioclaro';
+    const [instance, setInstance] = useState(initialInstanceKey);
     const [algorithm, setAlgorithm] = useState('savings_parallel');
-    const [k, setK] = useState(7);
+    const [k, setK] = useState(() => recommendedVehiclesForSize(instances.find((inst) => inst.key === initialInstanceKey)?.size ?? 0) ?? 7);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [result, setResult] = useState<SolveResult | null>(null);
@@ -105,38 +193,78 @@ export default function OptimizePage({ instances, algorithms, algorithmGroups, m
     const [importError, setImportError] = useState<string | null>(null);
     const [instanceList, setInstanceList] = useState<Instance[]>(instances);
 
+    // Debug output modal state
+    const [debugOpen, setDebugOpen] = useState(false);
+    const [debugJobId, setDebugJobId] = useState<string | null>(null);
+    const [debugLogs, setDebugLogs] = useState<{ stderr: string; stdout: string } | null>(null);
+    const [debugLoading, setDebugLoading] = useState(false);
+    const [stopLoading, setStopLoading] = useState(false);
+    const debugStderrRef = useRef<HTMLDivElement | null>(null);
+    const debugStdoutRef = useRef<HTMLDivElement | null>(null);
+
+    // Vehicle change confirmation state
+    const [confirmChangeOpen, setConfirmChangeOpen] = useState(false);
+    const [pendingVehicles, setPendingVehicles] = useState<number | null>(null);
+    const [confirmationInput, setConfirmationInput] = useState('');
+    const [useWebAuthn, setUseWebAuthn] = useState(false);
+    const [passkeyAvailable, setPasskeyAvailable] = useState(false);
+    const [biometricLoading, setBiometricLoading] = useState(false);
+    const [biometricError, setBiometricError] = useState<string | null>(null);
+
     // Collapsible group state — open groups for instances and algorithms.
     // Instance groups: derive unique group names, open the group containing the active instance.
     const instanceGroupNames = useMemo(() => {
         const seen = new Set<string>();
         const out: string[] = [];
+
         for (const inst of instanceList) {
             const g = inst.group ?? 'Other';
-            if (!seen.has(g)) { seen.add(g); out.push(g); }
+
+            if (!seen.has(g)) {
+                seen.add(g);
+                out.push(g);
+            }
         }
+
         return out;
     }, [instanceList]);
 
     const activeInstanceGroup = instanceList.find((i) => i.key === instance)?.group ?? instanceGroupNames[0] ?? '';
     const [openInstanceGroups, setOpenInstanceGroups] = useState<Set<string>>(() => new Set([activeInstanceGroup]));
     const [openAlgoGroups, setOpenAlgoGroups] = useState<Set<string>>(() => {
-        const activeGroup = Object.entries(algorithmGroups).find(([, keys]) => keys.includes(algorithm))?.[0] ?? 'Construction';
+        const activeGroup = ALGO_FAMILY_GROUPS.find((g) =>
+            g.families.some((f) => f.variants.some((v) => v.key === algorithm))
+        )?.group ?? 'Construction';
+
         return new Set([activeGroup]);
     });
 
     const toggleInstanceGroup = (g: string) => setOpenInstanceGroups((prev) => {
         const next = new Set(prev);
-        if (next.has(g)) next.delete(g); else next.add(g);
+
+        if (next.has(g)) {
+next.delete(g);
+} else {
+next.add(g);
+}
+
         return next;
     });
     const toggleAlgoGroup = (g: string) => setOpenAlgoGroups((prev) => {
         const next = new Set(prev);
-        if (next.has(g)) next.delete(g); else next.add(g);
+
+        if (next.has(g)) {
+next.delete(g);
+} else {
+next.add(g);
+}
+
         return next;
     });
 
     // Auto dispatch state
     const [autoDispatch, setAutoDispatch] = useState(false);
+    const [advancedOpen, setAdvancedOpen] = useState(false);
 
     // In-memory cache: `${instance}:${k}:${algorithm}` → SolveResult
     const solveCache = useRef<Map<string, SolveResult>>(new Map());
@@ -145,13 +273,29 @@ export default function OptimizePage({ instances, algorithms, algorithmGroups, m
     useEffect(() => {
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
+
             if (key?.startsWith('vrp:')) {
                 try {
                     const raw = localStorage.getItem(key);
-                    if (raw) solveCache.current.set(key.slice(4), JSON.parse(raw) as SolveResult);
+
+                    if (raw) {
+solveCache.current.set(key.slice(4), JSON.parse(raw) as SolveResult);
+}
                 } catch { /* ignore corrupt entries */ }
             }
         }
+    }, []);
+
+    useEffect(() => {
+        if (!window.PublicKeyCredential || !navigator.credentials || !window.isSecureContext) {
+            setPasskeyAvailable(false);
+
+            return;
+        }
+
+        window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+            .then(setPasskeyAvailable)
+            .catch(() => setPasskeyAvailable(false));
     }, []);
 
     const mapContainer = useRef<HTMLDivElement | null>(null);
@@ -188,6 +332,190 @@ return {};
         return result;
     };
 
+    const fetchDebugLogs = async (jobId: string, isPolling = false) => {
+        if (!isPolling) {
+setDebugLoading(true);
+}
+
+        try {
+            const res = await fetch(`/optimize/solve/${jobId}/debug`, {
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' },
+            });
+            const json = await res.json();
+
+            if (res.ok && json.ok) {
+                setDebugLogs({ stderr: json.stderr || '', stdout: json.stdout || '' });
+            }
+        } catch (e) {
+            console.error('[debug] fetch failed:', e);
+        } finally {
+            if (!isPolling) {
+setDebugLoading(false);
+}
+        }
+    };
+
+    const openDebugViewer = (jobId: string) => {
+        setDebugOpen(true);
+        setDebugJobId(jobId);
+        fetchDebugLogs(jobId);
+    };
+
+    const handleStopJob = async (jobId: string) => {
+        if (!confirm('Are you sure you want to force stop this optimization?\n\nThis will terminate the Python script and may lose current progress.')) {
+            return;
+        }
+
+        setStopLoading(true);
+
+        try {
+            const res = await fetch(`/optimize/solve/${jobId}/stop`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' },
+            });
+            const json = await res.json();
+
+            if (res.ok && json.ok) {
+                // Job stopped successfully, clear the loading state
+                setLoading(false);
+                setDebugJobId(null);
+                alert('Optimization stopped successfully.');
+            } else {
+                alert('Error stopping job: ' + (json.error || 'Unknown error'));
+            }
+        } catch (err) {
+            alert('Error stopping job: ' + String(err));
+        } finally {
+            setStopLoading(false);
+        }
+    };
+
+    const resetVehicleChangeConfirmation = () => {
+        setConfirmChangeOpen(false);
+        setPendingVehicles(null);
+        setConfirmationInput('');
+        setUseWebAuthn(false);
+        setBiometricLoading(false);
+        setBiometricError(null);
+    };
+
+    const applyVehicleCount = (vehicles: number) => {
+        setK(clampVehicles(vehicles));
+        resetVehicleChangeConfirmation();
+    };
+
+    const requestVehicleChange = (vehicles: number) => {
+        const nextVehicles = clampVehicles(vehicles);
+
+        if (nextVehicles === k) {
+return;
+}
+
+        setPendingVehicles(nextVehicles);
+        setConfirmationInput('');
+        setUseWebAuthn(passkeyAvailable);
+        setBiometricLoading(false);
+        setBiometricError(null);
+        setConfirmChangeOpen(true);
+    };
+
+    const selectInstance = (nextInstanceKey: string) => {
+        const nextInstance = instanceList.find((inst) => inst.key === nextInstanceKey);
+
+        setInstance(nextInstanceKey);
+
+        if (nextInstance) {
+            const recommendedVehicles = recommendedVehiclesForSize(nextInstance.size);
+
+            if (recommendedVehicles !== null) {
+                setK(recommendedVehicles);
+            }
+        }
+
+        resetVehicleChangeConfirmation();
+    };
+
+    // Handle vehicle count change with confirmation
+    const handleConfirmVehicleChange = async () => {
+        if (pendingVehicles === null) {
+return;
+}
+
+        if (useWebAuthn) {
+            if (!passkeyAvailable) {
+                setBiometricError('Passkey or biometric confirmation is not available in this browser.');
+                setUseWebAuthn(false);
+
+                return;
+            }
+
+            setBiometricLoading(true);
+            setBiometricError(null);
+
+            try {
+                const challenge = crypto.getRandomValues(new Uint8Array(32));
+                const assertion = await navigator.credentials.get({
+                    publicKey: {
+                        challenge,
+                        timeout: 60000,
+                        userVerification: 'required',
+                    },
+                });
+
+                if (!assertion) {
+                    setBiometricError('Authentication cancelled.');
+                    setBiometricLoading(false);
+
+                    return;
+                }
+
+                applyVehicleCount(pendingVehicles);
+            } catch (err: unknown) {
+                const errorName = err instanceof DOMException ? err.name : '';
+                const errorMessage = err instanceof Error ? err.message : 'Passkey authentication failed.';
+
+                setBiometricError(errorName === 'NotAllowedError' ? 'Authentication cancelled or not available.' : errorMessage);
+                setBiometricLoading(false);
+            }
+
+            return;
+        }
+
+        if (confirmationInput.trim().toLowerCase() !== VEHICLE_CONFIRMATION_PHRASE) {
+            setBiometricError(`Please type "${VEHICLE_CONFIRMATION_PHRASE}" to confirm.`);
+
+            return;
+        }
+
+        applyVehicleCount(pendingVehicles);
+    };
+
+    // Auto-poll debug logs when modal is open
+    useEffect(() => {
+        if (!debugOpen || !debugJobId) {
+return;
+}
+
+        const pollInterval = setInterval(() => {
+            fetchDebugLogs(debugJobId, true);
+        }, 500);
+
+        return () => clearInterval(pollInterval);
+    }, [debugOpen, debugJobId]);
+
+    // Auto-scroll debug output to bottom
+    useEffect(() => {
+        if (debugStderrRef.current) {
+            debugStderrRef.current.scrollTop = debugStderrRef.current.scrollHeight;
+        }
+
+        if (debugStdoutRef.current) {
+            debugStdoutRef.current.scrollTop = debugStdoutRef.current.scrollHeight;
+        }
+    }, [debugLogs]);
+
     const pollJob = (jobId: string) => {
         let cancelled = false;
 
@@ -216,7 +544,11 @@ return;
                     const solved = json.result as SolveResult;
                     const ck = `${solved.instance}:${solved.summary.num_routes}:${solved.algorithm}`;
                     solveCache.current.set(ck, solved);
-                    try { localStorage.setItem(`vrp:${ck}`, JSON.stringify(solved)); } catch { /* quota */ }
+
+                    try {
+ localStorage.setItem(`vrp:${ck}`, JSON.stringify(solved)); 
+} catch { /* quota */ }
+
                     setResult(solved);
                     setLoading(false);
                     setProgress(null);
@@ -275,15 +607,21 @@ setProgress(json.progress);
                 const solved = json.result as SolveResult;
                 const ck = `${solved.instance}:${solved.summary.num_routes}:${solved.algorithm}`;
                 solveCache.current.set(ck, solved);
-                try { localStorage.setItem(`vrp:${ck}`, JSON.stringify(solved)); } catch { /* quota */ }
+
+                try {
+ localStorage.setItem(`vrp:${ck}`, JSON.stringify(solved)); 
+} catch { /* quota */ }
+
                 setResult(solved);
                 setLoading(false);
                 setProgress(null);
                 setConfigOpen(false);
+
                 return;
             }
 
             pollJob(json.job_id);
+            setDebugJobId(json.job_id);
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : String(e));
             setLoading(false);
@@ -300,18 +638,23 @@ setProgress(json.progress);
 
         // Initialise all as pending
         const initial: Record<string, RaceEntry> = {};
+
         for (const algo of algoList) {
             initial[algo] = { status: 'pending', result: null, startedAt: now, finishedAt: null };
         }
+
         setRaceEntries(initial);
 
         // Run sequentially — update the leaderboard card as each one lands
         for (const algo of algoList) {
-            if (comparisonAbortRef.current) break;
+            if (comparisonAbortRef.current) {
+break;
+}
 
             // Cache hit — skip the solve entirely
             const cacheKey = `${instance}:${k}:${algo}`;
             const cached = solveCache.current.get(cacheKey);
+
             if (cached) {
                 setRaceEntries(prev => ({
                     ...prev,
@@ -370,7 +713,11 @@ setProgress(json.progress);
                     if (statusRes.ok && statusJson.ok && statusJson.status === 'done') {
                         const solved = statusJson.result as SolveResult;
                         solveCache.current.set(cacheKey, solved);
-                        try { localStorage.setItem(`vrp:${cacheKey}`, JSON.stringify(solved)); } catch { /* quota */ }
+
+                        try {
+ localStorage.setItem(`vrp:${cacheKey}`, JSON.stringify(solved)); 
+} catch { /* quota */ }
+
                         setRaceEntries(prev => ({
                             ...prev,
                             [algo]: { status: 'done', result: solved, startedAt: prev[algo]?.startedAt ?? Date.now(), finishedAt: Date.now() },
@@ -408,12 +755,17 @@ setProgress(json.progress);
         setPrecacheProgress({ done: 0, total: algoList.length, current: '' });
 
         for (let i = 0; i < algoList.length; i++) {
-            if (precacheAbortRef.current) break;
+            if (precacheAbortRef.current) {
+break;
+}
+
             const algo = algoList[i];
             const cacheKey = `${instance}:${k}:${algo}`;
             setPrecacheProgress({ done: i, total: algoList.length, current: algorithms[algo] });
 
-            if (solveCache.current.has(cacheKey)) continue;
+            if (solveCache.current.has(cacheKey)) {
+continue;
+}
 
             try {
                 const res = await fetch('/optimize/solve', {
@@ -423,18 +775,30 @@ setProgress(json.progress);
                     body: JSON.stringify({ instance, k, algorithm: algo }),
                 });
                 const json = await res.json();
-                if (!res.ok || !json.ok) continue;
+
+                if (!res.ok || !json.ok) {
+continue;
+}
 
                 let attempts = 0;
+
                 while (attempts < 600 && !precacheAbortRef.current) {
                     const sr = await fetch(`/optimize/solve/${json.job_id}`, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
                     const sj = await sr.json();
+
                     if (sr.ok && sj.ok && sj.status === 'done') {
                         const solved = sj.result as SolveResult;
                         solveCache.current.set(cacheKey, solved);
-                        try { localStorage.setItem(`vrp:${cacheKey}`, JSON.stringify(solved)); } catch { /* quota */ }
+
+                        try {
+ localStorage.setItem(`vrp:${cacheKey}`, JSON.stringify(solved)); 
+} catch { /* quota */ }
+
                         break;
-                    } else if (!sr.ok || !sj.ok) break;
+                    } else if (!sr.ok || !sj.ok) {
+break;
+}
+
                     await new Promise(r => setTimeout(r, 2000));
                     attempts++;
                 }
@@ -512,6 +876,12 @@ return;
             const newInst: Instance = { key: json.key, label: json.label, size: json.size, group: 'Custom', deletable: true };
             setInstanceList((prev) => [...prev, newInst]);
             setInstance(json.key);
+            const recommendedVehicles = recommendedVehiclesForSize(newInst.size);
+
+            if (recommendedVehicles !== null) {
+                setK(recommendedVehicles);
+            }
+
             setOpenInstanceGroups((prev) => new Set([...prev, 'Custom']));
             setImportOpen(false);
             setImportFile(null);
@@ -535,7 +905,16 @@ return;
             setInstanceList((prev) => prev.filter((i) => i.key !== key));
 
             if (instance === key) {
-setInstance(instanceList.find((i) => i.key !== key)?.key ?? '');
+                const fallbackInstance = instanceList.find((i) => i.key !== key);
+                setInstance(fallbackInstance?.key ?? '');
+
+                if (fallbackInstance) {
+                    const recommendedVehicles = recommendedVehiclesForSize(fallbackInstance.size);
+
+                    if (recommendedVehicles !== null) {
+                        setK(recommendedVehicles);
+                    }
+                }
 }
         }
     };
@@ -666,9 +1045,14 @@ m.remove();
 
             // Remove GPU node layers from previous result
             for (const layerId of ['nodes-labels', 'nodes-circle']) {
-                if (map.getLayer(layerId)) map.removeLayer(layerId);
+                if (map.getLayer(layerId)) {
+map.removeLayer(layerId);
+}
             }
-            if (map.getSource('nodes-stops')) map.removeSource('nodes-stops');
+
+            if (map.getSource('nodes-stops')) {
+map.removeSource('nodes-stops');
+}
 
             for (const r of result.routes) {
                 for (const suffix of ['glow', 'main', 'flow']) {
@@ -737,6 +1121,7 @@ map.removeSource(src);
 
             // --- Depot: one DOM marker with pulse (single element, no perf cost) ---
             const depotNode = result.nodes.find(n => n.is_depot);
+
             if (depotNode) {
                 const el = document.createElement('div');
                 el.style.cssText = 'position:relative;width:18px;height:18px;';
@@ -805,15 +1190,22 @@ map.removeSource(src);
             if (!nodeLayerHandlersAdded.current) {
                 nodeLayerHandlersAdded.current = true;
                 map.on('click', 'nodes-circle', (e) => {
-                    if (!e.features?.[0] || e.features[0].geometry.type !== 'Point') return;
+                    if (!e.features?.[0] || e.features[0].geometry.type !== 'Point') {
+return;
+}
+
                     const [lng, lat] = e.features[0].geometry.coordinates as [number, number];
                     new mapboxgl.Popup({ offset: 14, closeButton: false })
                         .setLngLat([lng, lat])
                         .setText(`Stop · #${e.features[0].properties?.id}`)
                         .addTo(map);
                 });
-                map.on('mouseenter', 'nodes-circle', () => { map.getCanvas().style.cursor = 'pointer'; });
-                map.on('mouseleave', 'nodes-circle', () => { map.getCanvas().style.cursor = ''; });
+                map.on('mouseenter', 'nodes-circle', () => {
+ map.getCanvas().style.cursor = 'pointer'; 
+});
+                map.on('mouseleave', 'nodes-circle', () => {
+ map.getCanvas().style.cursor = ''; 
+});
             }
 
             // --- cinematic globe → city fly-down ---
@@ -1218,6 +1610,7 @@ return [];
                                             const groupItems = instanceList.filter((i) => (i.group ?? 'Other') === groupName);
                                             const isOpen = openInstanceGroups.has(groupName);
                                             const hasActive = groupItems.some((i) => i.key === instance);
+
                                             return (
                                                 <div key={groupName} className="border border-border/30 rounded-lg overflow-hidden">
                                                     <button
@@ -1246,12 +1639,17 @@ return [];
                                                                 >
                                                                     <button
                                                                         type="button"
-                                                                        onClick={() => setInstance(inst.key)}
+                                                                        onClick={() => selectInstance(inst.key)}
                                                                         className="flex flex-1 items-center justify-between px-4 py-2.5 text-left min-w-0"
                                                                     >
                                                                         <div className="flex flex-col gap-0.5 min-w-0">
                                                                             <span className="font-display text-sm tracking-tight truncate">{inst.label}</span>
-                                                                            <span className="text-[8px] uppercase tracking-[0.28em] text-muted-foreground/38">{inst.size} stops</span>
+                                                                            <span className="text-[8px] uppercase tracking-[0.28em] text-muted-foreground/38">
+                                                                                {inst.size} stops
+                                                                                {VEHICLE_RECOMMENDATIONS[inst.size as keyof typeof VEHICLE_RECOMMENDATIONS] !== undefined && (
+                                                                                    <span className="text-primary/35 ml-1">· {VEHICLE_RECOMMENDATIONS[inst.size as keyof typeof VEHICLE_RECOMMENDATIONS]}v</span>
+                                                                                )}
+                                                                            </span>
                                                                         </div>
                                                                         <span className={cn('text-sm leading-none transition-all shrink-0 ml-2', instance === inst.key ? 'text-primary' : 'text-muted-foreground/20 group-hover:text-muted-foreground/40')}>
                                                                             {instance === inst.key ? '◉' : '○'}
@@ -1284,47 +1682,64 @@ return [];
 
                                 <PanelSection mark="§ ii" title="Method">
                                     <div className="flex flex-col gap-1.5">
-                                        {Object.entries(algorithmGroups).map(([groupName, keys]) => {
-                                            const isOpen = openAlgoGroups.has(groupName);
-                                            const hasActive = keys.includes(algorithm);
-                                            const isQuantum = groupName === 'Quantum';
+                                        {ALGO_FAMILY_GROUPS.map(({ group, isQuantum, families }) => {
+                                            const isOpen = openAlgoGroups.has(group);
+                                            const hasActive = families.some((f) => f.variants.some((v) => v.key === algorithm));
+
                                             return (
-                                                <div key={groupName} className="border border-border/30 rounded-lg overflow-hidden">
+                                                <div key={group} className="border border-border/30 rounded-lg overflow-hidden">
                                                     <button
                                                         type="button"
-                                                        onClick={() => toggleAlgoGroup(groupName)}
+                                                        onClick={() => toggleAlgoGroup(group)}
                                                         className={cn(
                                                             'w-full flex items-center justify-between px-3.5 py-2 transition-all duration-150',
                                                             hasActive ? 'bg-muted/25' : 'hover:bg-muted/10'
                                                         )}
                                                     >
                                                         <span className="flex items-center gap-2">
-                                                            <span className="text-[7px] uppercase tracking-[0.38em] text-muted-foreground/55">{groupName}</span>
+                                                            <span className="text-[7px] uppercase tracking-[0.38em] text-muted-foreground/55">{group}</span>
                                                             {hasActive && <span className="h-1 w-1 rounded-full bg-primary/60" />}
                                                             {isQuantum && <span className="text-[6px] uppercase tracking-[0.2em] px-1 py-0.5 border border-border/30 rounded-sm text-muted-foreground/35">QUBO</span>}
                                                         </span>
-                                                        <span className="text-[8px] text-muted-foreground/30 transition-transform duration-200" style={{ display:'inline-block', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>›</span>
+                                                        <span className="text-[8px] text-muted-foreground/30 transition-transform duration-200" style={{ display: 'inline-block', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>›</span>
                                                     </button>
                                                     {isOpen && (
                                                         <div className="divide-y divide-border/20 border-t border-border/25">
-                                                            {keys.map((key) => {
-                                                                const label = algorithms[key];
-                                                                if (!label) return null;
+                                                            {families.map(({ name, variants }) => {
+                                                                const isActiveFamily = variants.some((v) => v.key === algorithm);
+
                                                                 return (
-                                                                    <button
-                                                                        key={key}
-                                                                        type="button"
-                                                                        onClick={() => setAlgorithm(key)}
+                                                                    <div
+                                                                        key={name}
                                                                         className={cn(
-                                                                            'w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left transition-all duration-150 group',
-                                                                            algorithm === key ? 'bg-muted/35' : 'hover:bg-muted/15'
+                                                                            'flex items-center justify-between gap-2 px-4 py-2 transition-all',
+                                                                            isActiveFamily ? 'bg-muted/20' : ''
                                                                         )}
                                                                     >
-                                                                        <span className="font-display text-sm tracking-tight truncate">{label}</span>
-                                                                        <span className={cn('text-sm leading-none transition-all shrink-0', algorithm === key ? 'text-primary' : 'text-muted-foreground/20 group-hover:text-muted-foreground/40')}>
-                                                                            {algorithm === key ? '◉' : '○'}
+                                                                        <span className={cn(
+                                                                            'font-display text-xs tracking-tight shrink-0',
+                                                                            isActiveFamily ? 'text-foreground/80' : 'text-muted-foreground/45'
+                                                                        )}>
+                                                                            {name}
                                                                         </span>
-                                                                    </button>
+                                                                        <div className="flex items-center gap-1 flex-wrap justify-end">
+                                                                            {variants.map(({ key, label }) => (
+                                                                                <button
+                                                                                    key={key}
+                                                                                    type="button"
+                                                                                    onClick={() => setAlgorithm(key)}
+                                                                                    className={cn(
+                                                                                        'text-[7px] uppercase tracking-[0.18em] px-1.5 py-0.5 rounded border transition-all',
+                                                                                        algorithm === key
+                                                                                            ? 'border-primary/50 bg-primary/10 text-primary/80'
+                                                                                            : 'border-border/25 text-muted-foreground/35 hover:border-border/45 hover:text-muted-foreground/60'
+                                                                                    )}
+                                                                                >
+                                                                                    {label}
+                                                                                </button>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
                                                                 );
                                                             })}
                                                         </div>
@@ -1336,80 +1751,98 @@ return [];
                                 </PanelSection>
 
                                 <PanelSection mark="§ iii" title="Vehicles">
+                                    {(() => {
+                                        const currentSize = instanceList.find((i) => i.key === instance)?.size ?? 0;
+                                        const rec = recommendedVehiclesForSize(currentSize);
+
+                                        if (rec === null) {
+                                            return null;
+                                        }
+
+                                        if (rec !== k) {
+                                            return (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => applyVehicleCount(rec)}
+                                                    className="flex items-center gap-1.5 text-[7px] uppercase tracking-[0.3em] text-primary/50 hover:text-primary/70 transition-colors"
+                                                >
+                                                    <span className="h-px w-3 bg-primary/35" />
+                                                    Reset to recommended · {rec}v
+                                                </button>
+                                            );
+                                        }
+
+                                        return (
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="h-px w-3 bg-muted-foreground/20" />
+                                                <span className="text-[7px] uppercase tracking-[0.3em] text-muted-foreground/30">Recommended · {rec}v</span>
+                                            </div>
+                                        );
+                                    })()}
                                     <div className="flex items-center gap-3">
                                         <button
                                             type="button"
-                                            onClick={() => setK(Math.max(2, k - 1))}
-                                            disabled={k <= 2}
+                                            onClick={() => requestVehicleChange(k - 1)}
+                                            disabled={k <= MIN_VEHICLES}
                                             className={cn(
                                                 'flex items-center justify-center w-8 h-8 rounded border transition-all',
-                                                k <= 2
+                                                k <= MIN_VEHICLES
                                                     ? 'border-border/15 text-muted-foreground/20 cursor-not-allowed'
                                                     : 'border-border/25 text-muted-foreground/50 hover:border-primary/40 hover:text-primary/60'
                                             )}
-                                        >
-                                            −
-                                        </button>
-                                        
+                                        >−</button>
                                         <div className="flex-1">
                                             <input
                                                 type="number"
-                                                min={2}
-                                                max={100}
+                                                min={MIN_VEHICLES}
+                                                max={MAX_VEHICLES}
                                                 value={k}
                                                 onChange={(e) => {
                                                     const val = parseInt(e.target.value, 10);
-                                                    if (!isNaN(val) && val >= 2 && val <= 100) {
-                                                        setK(val);
+
+                                                    if (!isNaN(val)) {
+                                                        requestVehicleChange(val);
                                                     }
                                                 }}
                                                 className="w-full px-3 py-2 text-center border border-border/25 rounded bg-transparent font-display text-lg focus:outline-none focus:border-primary/50 transition-colors"
                                             />
                                         </div>
-                                        
                                         <button
                                             type="button"
-                                            onClick={() => setK(Math.min(100, k + 1))}
-                                            disabled={k >= 100}
+                                            onClick={() => requestVehicleChange(k + 1)}
+                                            disabled={k >= MAX_VEHICLES}
                                             className={cn(
                                                 'flex items-center justify-center w-8 h-8 rounded border transition-all',
-                                                k >= 100
+                                                k >= MAX_VEHICLES
                                                     ? 'border-border/15 text-muted-foreground/20 cursor-not-allowed'
                                                     : 'border-border/25 text-muted-foreground/50 hover:border-primary/40 hover:text-primary/60'
                                             )}
-                                        >
-                                            +
-                                        </button>
+                                        >+</button>
                                     </div>
-                                    
-                                    <div className="flex justify-between text-[7px] uppercase tracking-[0.35em] text-muted-foreground/25 mt-2">
-                                        <span>min 2</span>
-                                        <span>max 100</span>
+                                    <div className="flex justify-between text-[7px] uppercase tracking-[0.35em] text-muted-foreground/25 mt-1">
+                                        <span>min {MIN_VEHICLES}</span>
+                                        <span>max {MAX_VEHICLES}</span>
                                     </div>
                                 </PanelSection>
 
                                 <div className="flex flex-col gap-2 pt-1">
-                                    {/* Auto dispatch toggle */}
-                                    <button
-                                        type="button"
-                                        onClick={() => setAutoDispatch((v) => !v)}
-                                        className={cn(
-                                            'flex items-center justify-between px-4 py-2.5 rounded-lg border transition-all duration-150 text-left',
-                                            autoDispatch
-                                                ? 'border-primary/40 bg-primary/5'
-                                                : 'border-border/25 hover:border-border/45'
-                                        )}
-                                    >
-                                        <div className="flex flex-col gap-0.5">
-                                            <span className="text-[8px] uppercase tracking-[0.35em] text-muted-foreground/55">Auto dispatch</span>
-                                            <span className="text-[9px] font-serif italic text-muted-foreground/35">
-                                                {autoDispatch ? 'Assigns & sends on solve' : 'Manual driver assignment'}
+                                    {/* Auto dispatch — compact inline */}
+                                    <div className="flex items-center justify-between px-1">
+                                        <span className="text-[7px] uppercase tracking-[0.35em] text-muted-foreground/40">Auto dispatch</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setAutoDispatch((v) => !v)}
+                                            className={cn(
+                                                'flex items-center gap-1.5 text-[7px] uppercase tracking-[0.3em] transition-colors',
+                                                autoDispatch ? 'text-primary/70' : 'text-muted-foreground/30 hover:text-muted-foreground/50'
+                                            )}
+                                        >
+                                            <span className={cn('text-sm', autoDispatch ? 'text-primary' : 'text-muted-foreground/25')}>
+                                                {autoDispatch ? '◉' : '○'}
                                             </span>
-                                        </div>
-                                        <span className={cn('text-sm shrink-0', autoDispatch ? 'text-primary' : 'text-muted-foreground/25')}>
-                                            {autoDispatch ? '◉' : '○'}
-                                        </span>
-                                    </button>
+                                            {autoDispatch ? 'On' : 'Off'}
+                                        </button>
+                                    </div>
 
                                     <button
                                         type="button"
@@ -1421,24 +1854,38 @@ return [];
                                         <span>{loading ? 'Composing…' : 'Compose routes'}</span>
                                         {!loading && <span className="absolute right-4 font-display italic text-muted-foreground/30">→</span>}
                                     </button>
+
+                                    {/* Advanced tools — collapsed by default */}
                                     <button
                                         type="button"
-                                        onClick={comparing ? cancelComparison : compareAllAlgorithms}
-                                        disabled={loading || precaching}
-                                        className="w-full h-9 border border-border/30 rounded-lg font-display text-xs tracking-tight text-muted-foreground/55 transition-all hover:border-border/50 hover:text-muted-foreground disabled:opacity-40 flex items-center justify-center gap-2"
+                                        onClick={() => setAdvancedOpen((v) => !v)}
+                                        className="flex items-center justify-between w-full px-1 py-0.5 text-[7px] uppercase tracking-[0.35em] text-muted-foreground/25 hover:text-muted-foreground/45 transition-colors"
                                     >
-                                        {comparing && <Spinner />}
-                                        <span>{comparing ? 'Cancel' : 'Compare all methods'}</span>
+                                        <span>Advanced tools</span>
+                                        <span style={{ display: 'inline-block', transform: advancedOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 150ms' }}>›</span>
                                     </button>
-                                    <button
-                                        type="button"
-                                        onClick={precaching ? cancelPrecache : precacheAll}
-                                        disabled={loading || comparing}
-                                        className="w-full h-9 border border-border/30 rounded-lg font-display text-xs tracking-tight text-muted-foreground/55 transition-all hover:border-border/50 hover:text-muted-foreground disabled:opacity-40 flex items-center justify-center gap-2"
-                                    >
-                                        {precaching && <Spinner />}
-                                        <span>{precaching ? 'Cancel' : 'Pre-cache all algorithms'}</span>
-                                    </button>
+                                    {advancedOpen && (
+                                        <div className="flex flex-col gap-1.5 pl-3 border-l border-border/20">
+                                            <button
+                                                type="button"
+                                                onClick={comparing ? cancelComparison : compareAllAlgorithms}
+                                                disabled={loading || precaching}
+                                                className="w-full h-8 border border-border/25 rounded-lg font-display text-xs tracking-tight text-muted-foreground/50 transition-all hover:border-border/40 hover:text-muted-foreground/70 disabled:opacity-40 flex items-center justify-center gap-2"
+                                            >
+                                                {comparing && <Spinner />}
+                                                <span>{comparing ? 'Cancel comparison' : 'Compare all methods'}</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={precaching ? cancelPrecache : precacheAll}
+                                                disabled={loading || comparing}
+                                                className="w-full h-8 border border-border/25 rounded-lg font-display text-xs tracking-tight text-muted-foreground/50 transition-all hover:border-border/40 hover:text-muted-foreground/70 disabled:opacity-40 flex items-center justify-center gap-2"
+                                            >
+                                                {precaching && <Spinner />}
+                                                <span>{precaching ? 'Cancel pre-cache' : 'Pre-cache all algorithms'}</span>
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {(loading || comparing || precaching) && (
@@ -1499,6 +1946,7 @@ return [];
                             <div className="shrink-0 border-b border-border/40 divide-y divide-border/20">
                                 {summaryStats.map((s) => {
                                     const isFairness = s.label === 'Fairness';
+
                                     return (
                                         <div key={s.label} className={cn('flex items-center justify-between px-4 py-2', isFairness && 'bg-primary/4')}>
                                             <div className={cn('text-[7px] uppercase tracking-[0.38em]', isFairness ? 'text-primary/50' : 'text-muted-foreground/35')}>{s.label}</div>
@@ -1578,6 +2026,7 @@ return [];
                                                     const dev = ((r.raw_distance ?? 0) - avg) / (avg || 1);
                                                     const pct = Math.min(100, Math.abs(dev) * 100);
                                                     const over = dev > 0;
+
                                                     return (
                                                         <div className="flex items-center gap-1 mt-0.5">
                                                             <div className="w-12 h-0.5 rounded-full bg-border/20 overflow-hidden">
@@ -1599,7 +2048,13 @@ return [];
                                                     [r.route_index]: e.target.value ? parseInt(e.target.value, 10) : '',
                                                 }))}
                                                 onClick={(e) => e.stopPropagation()}
-                                            />
+                                                className="text-[8px] bg-transparent border border-border/20 rounded px-1 py-1 text-muted-foreground/60 hover:border-border/40 focus:outline-none focus:border-primary/40 transition-colors max-w-[90px] truncate"
+                                            >
+                                                <option value="">—</option>
+                                                {drivers.map((d) => (
+                                                    <option key={d.id} value={String(d.id)}>{d.name}</option>
+                                                ))}
+                                            </select>
 
                                             {/* Visibility toggle */}
                                             <button
@@ -1688,6 +2143,25 @@ return [];
                                 <div className="text-[8px] uppercase tracking-[0.6em] text-primary/70">Computing</div>
                                 <div className="font-display italic text-lg text-white/60">solving the graph</div>
                             </div>
+                            {debugJobId && (
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => openDebugViewer(debugJobId)}
+                                        className="pointer-events-auto text-[8px] uppercase tracking-[0.3em] border border-primary/30 rounded px-3 py-1.5 text-primary/50 hover:text-primary/70 hover:border-primary/50 transition-all"
+                                    >
+                                        View debug output
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleStopJob(debugJobId)}
+                                        disabled={stopLoading}
+                                        className="pointer-events-auto text-[8px] uppercase tracking-[0.3em] border border-red-900/40 rounded px-3 py-1.5 text-red-500/50 hover:text-red-400/70 hover:border-red-900/70 transition-all disabled:opacity-50"
+                                    >
+                                        {stopLoading ? 'Stopping…' : 'Force Stop'}
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -1870,16 +2344,201 @@ setImportName(f.name.replace(/\.[^.]+$/, '').toLowerCase().replace(/[^a-z0-9]/g,
                     </div>
                 </div>
             )}
-        </AppLayout>
-    );
-}
+            {/* ── Debug output modal ── */}
+            {debugOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(4,4,10,0.82)', backdropFilter: 'blur(8px)' }}>
+                    <div className="relative w-full max-w-2xl rounded-2xl border border-border/40 bg-sidebar shadow-2xl flex flex-col overflow-hidden max-h-[80vh]">
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-6 py-5 border-b border-border/30 shrink-0">
+                            <div className="flex items-baseline gap-2.5">
+                                <span className="h-px w-4 bg-primary/50" />
+                                <h2 className="font-display italic text-xl">Debug Output</h2>
+                                <span className="flex items-center gap-1.5">
+                                    <span className="h-2 w-2 rounded-full bg-primary/60 animate-pulse" />
+                                    <span className="text-[7px] uppercase tracking-[0.3em] text-primary/50">Live</span>
+                                </span>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setDebugOpen(false)}
+                                className="text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors text-sm"
+                            >
+                                ✕
+                            </button>
+                        </div>
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-    return (
-        <div className="flex flex-col gap-3">
-            <label className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">{label}</label>
-            {children}
-        </div>
+                        {/* Content */}
+                        <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-4">
+                            {debugLoading ? (
+                                <div className="flex items-center justify-center py-8">
+                                    <Spinner />
+                                    <span className="ml-3 text-[9px] text-muted-foreground/50">Loading logs…</span>
+                                </div>
+                            ) : debugLogs ? (
+                                <>
+                                    {debugLogs.stderr && (
+                                        <div>
+                                            <div className="text-[9px] uppercase tracking-[0.3em] text-muted-foreground/60 mb-2">stderr</div>
+                                            <div
+                                                ref={debugStderrRef}
+                                                className="bg-black/40 border border-border/30 rounded p-3 font-mono text-[8px] text-amber-400/80 whitespace-pre-wrap overflow-auto max-h-64">
+                                                {debugLogs.stderr}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {debugLogs.stdout && (
+                                        <div>
+                                            <div className="text-[9px] uppercase tracking-[0.3em] text-muted-foreground/60 mb-2">stdout</div>
+                                            <div
+                                                ref={debugStdoutRef}
+                                                className="bg-black/40 border border-border/30 rounded p-3 font-mono text-[8px] text-green-400/60 whitespace-pre-wrap overflow-auto max-h-64">
+                                                {debugLogs.stdout}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {!debugLogs.stderr && !debugLogs.stdout && (
+                                        <p className="text-[9px] text-muted-foreground/40 italic">No output captured</p>
+                                    )}
+                                </>
+                            ) : (
+                                <p className="text-[9px] text-muted-foreground/40 italic">No logs available</p>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="border-t border-border/30 px-6 py-3 shrink-0 flex gap-2 items-center justify-between">
+                            <span className="text-[7px] uppercase tracking-[0.3em] text-muted-foreground/40">Auto-updating every 500ms</span>
+                            <button
+                                type="button"
+                                onClick={() => setDebugOpen(false)}
+                                className="text-[8px] uppercase tracking-[0.3em] border border-border/25 rounded px-3 py-1.5 text-muted-foreground/50 hover:text-muted-foreground/70 hover:border-border/45 transition-all"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Vehicle change confirmation modal ── */}
+            {confirmChangeOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(4,4,10,0.82)', backdropFilter: 'blur(8px)' }}>
+                    <div className="relative w-full max-w-md rounded-2xl border border-border/40 bg-sidebar shadow-2xl flex flex-col overflow-hidden">
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-6 py-5 border-b border-border/30">
+                            <div className="flex items-baseline gap-2.5">
+                                <span className="font-display italic text-[11px] text-muted-foreground/35">§ ✓</span>
+                                <span className="text-[8px] uppercase tracking-[0.38em] text-muted-foreground/55">Confirm Change</span>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={resetVehicleChangeConfirmation}
+                                className="text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors text-sm"
+                            >✕</button>
+                        </div>
+
+                        <div className="px-6 py-5 flex flex-col gap-5">
+                            <div>
+                                <p className="text-[8px] uppercase tracking-[0.38em] text-muted-foreground/55 mb-2">Change vehicles</p>
+                                <p className="text-sm text-muted-foreground/70">
+                                    {k} <span className="text-muted-foreground/40">→</span> {pendingVehicles}
+                                </p>
+                            </div>
+
+                            {/* Biometric loading state */}
+                            {useWebAuthn && biometricLoading && (
+                                <div className="flex flex-col items-center justify-center gap-3 py-6">
+                                    <div className="relative w-12 h-12 flex items-center justify-center">
+                                        <div className="absolute inset-0 rounded-full border-2 border-primary/20 animate-spin" />
+                                        <div className="font-display italic text-xl text-primary/70">id</div>
+                                    </div>
+                                    <p className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/60 text-center">Waiting for passkey</p>
+                                </div>
+                            )}
+
+                            {/* Biometric error */}
+                            {useWebAuthn && biometricError && !biometricLoading && (
+                                <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3">
+                                    <p className="text-[8px] uppercase tracking-[0.3em] text-destructive/70 font-semibold mb-1">Authentication failed</p>
+                                    <p className="text-[7px] text-destructive/60">{biometricError}</p>
+                                </div>
+                            )}
+
+                            {/* WebAuthn option (if available) */}
+                            {passkeyAvailable && !biometricLoading && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setUseWebAuthn(!useWebAuthn);
+                                        setBiometricError(null);
+                                    }}
+                                    disabled={biometricLoading}
+                                    className={cn(
+                                        'flex items-center justify-between px-4 py-2.5 rounded-lg border transition-all',
+                                        useWebAuthn
+                                            ? 'border-primary/40 bg-primary/5 text-primary'
+                                            : 'border-border/25 hover:border-border/45 text-muted-foreground/50'
+                                    )}
+                                >
+                                    <span className="text-[8px] uppercase tracking-[0.3em]">Use passkey/biometric</span>
+                                    <span className="text-sm">{useWebAuthn ? '✓' : '○'}</span>
+                                </button>
+                            )}
+
+                            {/* Text confirmation (fallback or required) */}
+                            {!useWebAuthn && (
+                                <div>
+                                    <label className="text-[7px] uppercase tracking-[0.35em] text-muted-foreground/50 block mb-2">
+                                        Type "<span className="font-semibold text-primary/70">{VEHICLE_CONFIRMATION_PHRASE}</span>" to confirm
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={confirmationInput}
+                                        onChange={(e) => {
+                                            setConfirmationInput(e.target.value);
+                                            setBiometricError(null);
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+handleConfirmVehicleChange();
+}
+                                        }}
+                                        placeholder={VEHICLE_CONFIRMATION_PHRASE}
+                                        className="w-full px-3 py-2 text-sm border border-border/25 rounded bg-transparent font-mono focus:outline-none focus:border-primary/50 transition-colors"
+                                        autoFocus
+                                    />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="border-t border-border/30 px-6 py-3 shrink-0 flex gap-2 justify-end">
+                            <button
+                                type="button"
+                                onClick={resetVehicleChangeConfirmation}
+                                disabled={biometricLoading}
+                                className="text-[8px] uppercase tracking-[0.3em] border border-border/25 rounded px-3 py-1.5 text-muted-foreground/50 hover:text-muted-foreground/70 hover:border-border/45 transition-all disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleConfirmVehicleChange}
+                                disabled={biometricLoading || (!useWebAuthn && confirmationInput.trim().toLowerCase() !== VEHICLE_CONFIRMATION_PHRASE)}
+                                className={cn(
+                                    'text-[8px] uppercase tracking-[0.3em] border rounded px-3 py-1.5 transition-all',
+                                    biometricLoading || (!useWebAuthn && confirmationInput.trim().toLowerCase() !== VEHICLE_CONFIRMATION_PHRASE)
+                                        ? 'border-border/15 text-muted-foreground/30 cursor-not-allowed'
+                                        : 'border-primary/40 text-primary/70 hover:border-primary/60 hover:text-primary'
+                                )}
+                            >
+                                {biometricLoading ? 'Authenticating…' : 'Confirm'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </AppLayout>
     );
 }
 
@@ -1898,137 +2557,6 @@ function PanelSection({ mark, title, children }: { mark: string; title: string; 
 const ROMAN = ['', 'I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII','XIII','XIV','XV'];
 function toRoman(n: number): string {
     return ROMAN[n] ?? String(n);
-}
-
-function ComparisonMapCard({ result, mapboxToken }: { result: SolveResult; mapboxToken: string | null }) {
-    const mapContainer = useRef<HTMLDivElement | null>(null);
-    const mapRef = useRef<mapboxgl.Map | null>(null);
-    const markersRef = useRef<mapboxgl.Marker[]>([]);
-
-    useEffect(() => {
-        if (!mapboxToken || !mapContainer.current || mapRef.current) {
-return;
-}
-
-        mapboxgl.accessToken = mapboxToken;
-
-        try {
-            const map = new mapboxgl.Map({
-                container: mapContainer.current,
-                style: 'mapbox://styles/mapbox/dark-v11',
-                center: [-47.556, -22.411],
-                zoom: 11.6,
-                pitch: 45,
-                bearing: -18,
-                antialias: true,
-                attributionControl: false,
-            });
-
-            map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
-
-            map.on('load', () => {
-                map.resize();
-
-                // Add routes as layers
-                for (const r of result.routes) {
-                    const src = `route-${r.route_index}`;
-
-                    map.addSource(src, {
-                        type: 'geojson',
-                        data: { type: 'Feature', properties: {}, geometry: r.geometry },
-                    });
-
-                    map.addLayer({
-                        id: `${src}-glow`,
-                        type: 'line',
-                        source: src,
-                        layout: { 'line-cap': 'round', 'line-join': 'round' },
-                        paint: {
-                            'line-color': r.color,
-                            'line-width': 10,
-                            'line-opacity': 0.22,
-                            'line-blur': 6,
-                        },
-                    });
-
-                    map.addLayer({
-                        id: `${src}-main`,
-                        type: 'line',
-                        source: src,
-                        layout: { 'line-cap': 'round', 'line-join': 'round' },
-                        paint: {
-                            'line-color': r.color,
-                            'line-width': 2.4,
-                            'line-opacity': 1,
-                        },
-                    });
-                }
-
-                // Depot: single DOM marker
-                const depot = result.nodes.find(n => n.is_depot);
-                if (depot) {
-                    const el = document.createElement('div');
-                    el.style.cssText = 'position:relative;width:14px;height:14px;';
-                    el.innerHTML = `<span style="position:absolute;inset:0;border-radius:9999px;background:#fff;box-shadow:0 0 10px rgba(255,255,255,0.6);display:flex;align-items:center;justify-content:center;color:#0a0a0f;font-family:'Instrument Serif',serif;font-style:italic;font-size:8px;">D</span>`;
-                    markersRef.current.push(new mapboxgl.Marker({ element: el }).setLngLat([depot.lng, depot.lat]).addTo(map));
-                }
-
-                // Stop nodes: GPU circle layer
-                map.addSource('nodes-stops', {
-                    type: 'geojson',
-                    data: {
-                        type: 'FeatureCollection',
-                        features: result.nodes
-                            .filter(n => !n.is_depot)
-                            .map(n => ({
-                                type: 'Feature' as const,
-                                geometry: { type: 'Point' as const, coordinates: [n.lng, n.lat] as [number, number] },
-                                properties: { id: n.id },
-                            })),
-                    },
-                });
-                map.addLayer({
-                    id: 'nodes-circle',
-                    type: 'circle',
-                    source: 'nodes-stops',
-                    paint: {
-                        'circle-radius': 3,
-                        'circle-color': 'rgba(14,14,22,0.9)',
-                        'circle-stroke-width': 0.8,
-                        'circle-stroke-color': 'rgba(255,255,255,0.32)',
-                    },
-                });
-
-                // Fit to bounds
-                const b = result.bbox;
-
-                map.fitBounds(
-                    [[b.west, b.south], [b.east, b.north]],
-                    { padding: 40, duration: 800, pitch: 45, bearing: -18 }
-                );
-            });
-
-            mapRef.current = map;
-        } catch (e) {
-            console.error('[mapbox comparison]', e);
-        }
-
-        return () => {
-            if (mapRef.current) {
-                mapRef.current.remove();
-                mapRef.current = null;
-            }
-        };
-    }, [mapboxToken, result]);
-
-    return (
-        <div
-            className="relative w-full rounded-lg overflow-hidden border border-border/30 bg-muted/10"
-            style={{ height: 200 }}
-        >
-            <div ref={mapContainer} className="absolute inset-0" style={{ width: '100%', height: '100%' }} />
-        </div>
-    );
 }
 
 // ── Race Leaderboard ─────────────────────────────────────────────────────────
@@ -2056,6 +2584,7 @@ function RaceLeaderboard({
         .sort(([, a], [, b]) => {
             const fa = a.result!.summary.weighted_fairness ?? a.result!.summary.total_distance;
             const fb = b.result!.summary.weighted_fairness ?? b.result!.summary.total_distance;
+
             return fa - fb;
         });
     const runningEntries = allEntries.filter(([, e]) => e.status === 'running');
@@ -2069,6 +2598,7 @@ function RaceLeaderboard({
     // Pre-compute rank (1-indexed position among done-sorted entries)
     const rankedItems = (() => {
         let rank = 0;
+
         return sorted.map(([algo, entry]) => ({
             algo,
             entry,

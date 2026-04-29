@@ -138,7 +138,7 @@ solve.form = solveForm
 
 /**
 * @see \App\Http\Controllers\OptimizeController::solveStatus
-* @see app/Http/Controllers/OptimizeController.php:215
+* @see app/Http/Controllers/OptimizeController.php:224
 * @route '/optimize/solve/{jobId}'
 */
 export const solveStatus = (args: { jobId: string | number } | [jobId: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -153,7 +153,7 @@ solveStatus.definition = {
 
 /**
 * @see \App\Http\Controllers\OptimizeController::solveStatus
-* @see app/Http/Controllers/OptimizeController.php:215
+* @see app/Http/Controllers/OptimizeController.php:224
 * @route '/optimize/solve/{jobId}'
 */
 solveStatus.url = (args: { jobId: string | number } | [jobId: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -180,7 +180,7 @@ solveStatus.url = (args: { jobId: string | number } | [jobId: string | number ] 
 
 /**
 * @see \App\Http\Controllers\OptimizeController::solveStatus
-* @see app/Http/Controllers/OptimizeController.php:215
+* @see app/Http/Controllers/OptimizeController.php:224
 * @route '/optimize/solve/{jobId}'
 */
 solveStatus.get = (args: { jobId: string | number } | [jobId: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -190,7 +190,7 @@ solveStatus.get = (args: { jobId: string | number } | [jobId: string | number ] 
 
 /**
 * @see \App\Http\Controllers\OptimizeController::solveStatus
-* @see app/Http/Controllers/OptimizeController.php:215
+* @see app/Http/Controllers/OptimizeController.php:224
 * @route '/optimize/solve/{jobId}'
 */
 solveStatus.head = (args: { jobId: string | number } | [jobId: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -200,7 +200,7 @@ solveStatus.head = (args: { jobId: string | number } | [jobId: string | number ]
 
 /**
 * @see \App\Http\Controllers\OptimizeController::solveStatus
-* @see app/Http/Controllers/OptimizeController.php:215
+* @see app/Http/Controllers/OptimizeController.php:224
 * @route '/optimize/solve/{jobId}'
 */
 const solveStatusForm = (args: { jobId: string | number } | [jobId: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -210,7 +210,7 @@ const solveStatusForm = (args: { jobId: string | number } | [jobId: string | num
 
 /**
 * @see \App\Http\Controllers\OptimizeController::solveStatus
-* @see app/Http/Controllers/OptimizeController.php:215
+* @see app/Http/Controllers/OptimizeController.php:224
 * @route '/optimize/solve/{jobId}'
 */
 solveStatusForm.get = (args: { jobId: string | number } | [jobId: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -220,7 +220,7 @@ solveStatusForm.get = (args: { jobId: string | number } | [jobId: string | numbe
 
 /**
 * @see \App\Http\Controllers\OptimizeController::solveStatus
-* @see app/Http/Controllers/OptimizeController.php:215
+* @see app/Http/Controllers/OptimizeController.php:224
 * @route '/optimize/solve/{jobId}'
 */
 solveStatusForm.head = (args: { jobId: string | number } | [jobId: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -236,8 +236,181 @@ solveStatusForm.head = (args: { jobId: string | number } | [jobId: string | numb
 solveStatus.form = solveStatusForm
 
 /**
+* @see \App\Http\Controllers\OptimizeController::solveDebug
+* @see app/Http/Controllers/OptimizeController.php:287
+* @route '/optimize/solve/{jobId}/debug'
+*/
+export const solveDebug = (args: { jobId: string | number } | [jobId: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: solveDebug.url(args, options),
+    method: 'get',
+})
+
+solveDebug.definition = {
+    methods: ["get","head"],
+    url: '/optimize/solve/{jobId}/debug',
+} satisfies RouteDefinition<["get","head"]>
+
+/**
+* @see \App\Http\Controllers\OptimizeController::solveDebug
+* @see app/Http/Controllers/OptimizeController.php:287
+* @route '/optimize/solve/{jobId}/debug'
+*/
+solveDebug.url = (args: { jobId: string | number } | [jobId: string | number ] | string | number, options?: RouteQueryOptions) => {
+    if (typeof args === 'string' || typeof args === 'number') {
+        args = { jobId: args }
+    }
+
+    if (Array.isArray(args)) {
+        args = {
+            jobId: args[0],
+        }
+    }
+
+    args = applyUrlDefaults(args)
+
+    const parsedArgs = {
+        jobId: args.jobId,
+    }
+
+    return solveDebug.definition.url
+            .replace('{jobId}', parsedArgs.jobId.toString())
+            .replace(/\/+$/, '') + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\OptimizeController::solveDebug
+* @see app/Http/Controllers/OptimizeController.php:287
+* @route '/optimize/solve/{jobId}/debug'
+*/
+solveDebug.get = (args: { jobId: string | number } | [jobId: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: solveDebug.url(args, options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\OptimizeController::solveDebug
+* @see app/Http/Controllers/OptimizeController.php:287
+* @route '/optimize/solve/{jobId}/debug'
+*/
+solveDebug.head = (args: { jobId: string | number } | [jobId: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
+    url: solveDebug.url(args, options),
+    method: 'head',
+})
+
+/**
+* @see \App\Http\Controllers\OptimizeController::solveDebug
+* @see app/Http/Controllers/OptimizeController.php:287
+* @route '/optimize/solve/{jobId}/debug'
+*/
+const solveDebugForm = (args: { jobId: string | number } | [jobId: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: solveDebug.url(args, options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\OptimizeController::solveDebug
+* @see app/Http/Controllers/OptimizeController.php:287
+* @route '/optimize/solve/{jobId}/debug'
+*/
+solveDebugForm.get = (args: { jobId: string | number } | [jobId: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: solveDebug.url(args, options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\OptimizeController::solveDebug
+* @see app/Http/Controllers/OptimizeController.php:287
+* @route '/optimize/solve/{jobId}/debug'
+*/
+solveDebugForm.head = (args: { jobId: string | number } | [jobId: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: solveDebug.url(args, {
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'HEAD',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'get',
+})
+
+solveDebug.form = solveDebugForm
+
+/**
+* @see \App\Http\Controllers\OptimizeController::stopJob
+* @see app/Http/Controllers/OptimizeController.php:310
+* @route '/optimize/solve/{jobId}/stop'
+*/
+export const stopJob = (args: { jobId: string | number } | [jobId: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
+    url: stopJob.url(args, options),
+    method: 'post',
+})
+
+stopJob.definition = {
+    methods: ["post"],
+    url: '/optimize/solve/{jobId}/stop',
+} satisfies RouteDefinition<["post"]>
+
+/**
+* @see \App\Http\Controllers\OptimizeController::stopJob
+* @see app/Http/Controllers/OptimizeController.php:310
+* @route '/optimize/solve/{jobId}/stop'
+*/
+stopJob.url = (args: { jobId: string | number } | [jobId: string | number ] | string | number, options?: RouteQueryOptions) => {
+    if (typeof args === 'string' || typeof args === 'number') {
+        args = { jobId: args }
+    }
+
+    if (Array.isArray(args)) {
+        args = {
+            jobId: args[0],
+        }
+    }
+
+    args = applyUrlDefaults(args)
+
+    const parsedArgs = {
+        jobId: args.jobId,
+    }
+
+    return stopJob.definition.url
+            .replace('{jobId}', parsedArgs.jobId.toString())
+            .replace(/\/+$/, '') + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\OptimizeController::stopJob
+* @see app/Http/Controllers/OptimizeController.php:310
+* @route '/optimize/solve/{jobId}/stop'
+*/
+stopJob.post = (args: { jobId: string | number } | [jobId: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
+    url: stopJob.url(args, options),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\OptimizeController::stopJob
+* @see app/Http/Controllers/OptimizeController.php:310
+* @route '/optimize/solve/{jobId}/stop'
+*/
+const stopJobForm = (args: { jobId: string | number } | [jobId: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: stopJob.url(args, options),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\OptimizeController::stopJob
+* @see app/Http/Controllers/OptimizeController.php:310
+* @route '/optimize/solve/{jobId}/stop'
+*/
+stopJobForm.post = (args: { jobId: string | number } | [jobId: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: stopJob.url(args, options),
+    method: 'post',
+})
+
+stopJob.form = stopJobForm
+
+/**
 * @see \App\Http\Controllers\OptimizeController::importInstance
-* @see app/Http/Controllers/OptimizeController.php:277
+* @see app/Http/Controllers/OptimizeController.php:350
 * @route '/optimize/instances/import'
 */
 export const importInstance = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -252,7 +425,7 @@ importInstance.definition = {
 
 /**
 * @see \App\Http\Controllers\OptimizeController::importInstance
-* @see app/Http/Controllers/OptimizeController.php:277
+* @see app/Http/Controllers/OptimizeController.php:350
 * @route '/optimize/instances/import'
 */
 importInstance.url = (options?: RouteQueryOptions) => {
@@ -261,7 +434,7 @@ importInstance.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\OptimizeController::importInstance
-* @see app/Http/Controllers/OptimizeController.php:277
+* @see app/Http/Controllers/OptimizeController.php:350
 * @route '/optimize/instances/import'
 */
 importInstance.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -271,7 +444,7 @@ importInstance.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => 
 
 /**
 * @see \App\Http\Controllers\OptimizeController::importInstance
-* @see app/Http/Controllers/OptimizeController.php:277
+* @see app/Http/Controllers/OptimizeController.php:350
 * @route '/optimize/instances/import'
 */
 const importInstanceForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -281,7 +454,7 @@ const importInstanceForm = (options?: RouteQueryOptions): RouteFormDefinition<'p
 
 /**
 * @see \App\Http\Controllers\OptimizeController::importInstance
-* @see app/Http/Controllers/OptimizeController.php:277
+* @see app/Http/Controllers/OptimizeController.php:350
 * @route '/optimize/instances/import'
 */
 importInstanceForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -293,7 +466,7 @@ importInstance.form = importInstanceForm
 
 /**
 * @see \App\Http\Controllers\OptimizeController::deleteInstance
-* @see app/Http/Controllers/OptimizeController.php:334
+* @see app/Http/Controllers/OptimizeController.php:407
 * @route '/optimize/instances/{key}'
 */
 export const deleteInstance = (args: { key: string | number } | [key: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -308,7 +481,7 @@ deleteInstance.definition = {
 
 /**
 * @see \App\Http\Controllers\OptimizeController::deleteInstance
-* @see app/Http/Controllers/OptimizeController.php:334
+* @see app/Http/Controllers/OptimizeController.php:407
 * @route '/optimize/instances/{key}'
 */
 deleteInstance.url = (args: { key: string | number } | [key: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -335,7 +508,7 @@ deleteInstance.url = (args: { key: string | number } | [key: string | number ] |
 
 /**
 * @see \App\Http\Controllers\OptimizeController::deleteInstance
-* @see app/Http/Controllers/OptimizeController.php:334
+* @see app/Http/Controllers/OptimizeController.php:407
 * @route '/optimize/instances/{key}'
 */
 deleteInstance.delete = (args: { key: string | number } | [key: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -345,7 +518,7 @@ deleteInstance.delete = (args: { key: string | number } | [key: string | number 
 
 /**
 * @see \App\Http\Controllers\OptimizeController::deleteInstance
-* @see app/Http/Controllers/OptimizeController.php:334
+* @see app/Http/Controllers/OptimizeController.php:407
 * @route '/optimize/instances/{key}'
 */
 const deleteInstanceForm = (args: { key: string | number } | [key: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -360,7 +533,7 @@ const deleteInstanceForm = (args: { key: string | number } | [key: string | numb
 
 /**
 * @see \App\Http\Controllers\OptimizeController::deleteInstance
-* @see app/Http/Controllers/OptimizeController.php:334
+* @see app/Http/Controllers/OptimizeController.php:407
 * @route '/optimize/instances/{key}'
 */
 deleteInstanceForm.delete = (args: { key: string | number } | [key: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -456,6 +629,6 @@ historyForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => 
 
 history.form = historyForm
 
-const OptimizeController = { show, solve, solveStatus, importInstance, deleteInstance, history }
+const OptimizeController = { show, solve, solveStatus, solveDebug, stopJob, importInstance, deleteInstance, history }
 
 export default OptimizeController

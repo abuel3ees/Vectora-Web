@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../wayfinder'
 /**
 * @see \App\Http\Controllers\OptimizeController::importMethod
-* @see app/Http/Controllers/OptimizeController.php:277
+* @see app/Http/Controllers/OptimizeController.php:350
 * @route '/optimize/instances/import'
 */
 export const importMethod = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -16,7 +16,7 @@ importMethod.definition = {
 
 /**
 * @see \App\Http\Controllers\OptimizeController::importMethod
-* @see app/Http/Controllers/OptimizeController.php:277
+* @see app/Http/Controllers/OptimizeController.php:350
 * @route '/optimize/instances/import'
 */
 importMethod.url = (options?: RouteQueryOptions) => {
@@ -25,7 +25,7 @@ importMethod.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\OptimizeController::importMethod
-* @see app/Http/Controllers/OptimizeController.php:277
+* @see app/Http/Controllers/OptimizeController.php:350
 * @route '/optimize/instances/import'
 */
 importMethod.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -35,7 +35,7 @@ importMethod.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
 /**
 * @see \App\Http\Controllers\OptimizeController::importMethod
-* @see app/Http/Controllers/OptimizeController.php:277
+* @see app/Http/Controllers/OptimizeController.php:350
 * @route '/optimize/instances/import'
 */
 const importMethodForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -45,7 +45,7 @@ const importMethodForm = (options?: RouteQueryOptions): RouteFormDefinition<'pos
 
 /**
 * @see \App\Http\Controllers\OptimizeController::importMethod
-* @see app/Http/Controllers/OptimizeController.php:277
+* @see app/Http/Controllers/OptimizeController.php:350
 * @route '/optimize/instances/import'
 */
 importMethodForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -57,7 +57,7 @@ importMethod.form = importMethodForm
 
 /**
 * @see \App\Http\Controllers\OptimizeController::deleteMethod
-* @see app/Http/Controllers/OptimizeController.php:334
+* @see app/Http/Controllers/OptimizeController.php:407
 * @route '/optimize/instances/{key}'
 */
 export const deleteMethod = (args: { key: string | number } | [key: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -72,7 +72,7 @@ deleteMethod.definition = {
 
 /**
 * @see \App\Http\Controllers\OptimizeController::deleteMethod
-* @see app/Http/Controllers/OptimizeController.php:334
+* @see app/Http/Controllers/OptimizeController.php:407
 * @route '/optimize/instances/{key}'
 */
 deleteMethod.url = (args: { key: string | number } | [key: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -99,7 +99,7 @@ deleteMethod.url = (args: { key: string | number } | [key: string | number ] | s
 
 /**
 * @see \App\Http\Controllers\OptimizeController::deleteMethod
-* @see app/Http/Controllers/OptimizeController.php:334
+* @see app/Http/Controllers/OptimizeController.php:407
 * @route '/optimize/instances/{key}'
 */
 deleteMethod.delete = (args: { key: string | number } | [key: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -109,7 +109,7 @@ deleteMethod.delete = (args: { key: string | number } | [key: string | number ] 
 
 /**
 * @see \App\Http\Controllers\OptimizeController::deleteMethod
-* @see app/Http/Controllers/OptimizeController.php:334
+* @see app/Http/Controllers/OptimizeController.php:407
 * @route '/optimize/instances/{key}'
 */
 const deleteMethodForm = (args: { key: string | number } | [key: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -124,7 +124,7 @@ const deleteMethodForm = (args: { key: string | number } | [key: string | number
 
 /**
 * @see \App\Http\Controllers\OptimizeController::deleteMethod
-* @see app/Http/Controllers/OptimizeController.php:334
+* @see app/Http/Controllers/OptimizeController.php:407
 * @route '/optimize/instances/{key}'
 */
 deleteMethodForm.delete = (args: { key: string | number } | [key: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({

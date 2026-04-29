@@ -41,6 +41,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('optimize', [OptimizeController::class, 'show'])->name('optimize');
     Route::post('optimize/solve', [OptimizeController::class, 'solve'])->name('optimize.solve');
     Route::get('optimize/solve/{jobId}', [OptimizeController::class, 'solveStatus'])->name('optimize.solve.status');
+    Route::get('optimize/solve/{jobId}/debug', [OptimizeController::class, 'solveDebug'])->name('optimize.solve.debug');
+    Route::post('optimize/solve/{jobId}/stop', [OptimizeController::class, 'stopJob'])->name('optimize.solve.stop');
     Route::post('optimize/dispatch', [DriverAssignmentController::class, 'store'])->name('optimize.dispatch');
     Route::post('optimize/instances/import', [OptimizeController::class, 'importInstance'])->name('optimize.instances.import');
     Route::delete('optimize/instances/{key}', [OptimizeController::class, 'deleteInstance'])->name('optimize.instances.delete');

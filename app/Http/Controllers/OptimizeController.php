@@ -199,15 +199,24 @@ class OptimizeController extends Controller
         $script = base_path('scripts/run_vrp.py');
 
         // Detached: survives the HTTP request, no time limit.
+        // Capture the PID so we can kill it later if needed.
         $cmd = sprintf(
-            'nohup %s %s < %s > %s 2> %s &',
+            'nohup %s %s < %s > %s 2> %s & echo $!',
             escapeshellarg($python),
             escapeshellarg($script),
             escapeshellarg($inPath),
             escapeshellarg($outPath),
             escapeshellarg($errPath),
         );
-        exec($cmd);
+        $output = [];
+        exec($cmd, $output);
+        $pid = (int) ($output[0] ?? 0);
+        
+        // Store PID for later cleanup
+        if ($pid > 0) {
+            $pidPath = "$dir/$jobId.pid";
+            file_put_contents($pidPath, (string) $pid);
+        }
 
         return response()->json(['ok' => true, 'job_id' => $jobId]);
     }
@@ -270,6 +279,70 @@ class OptimizeController extends Controller
             'status'   => 'pending',
             'progress' => $this->extractProgress($errText),
         ]);
+    }
+
+    /**
+     * Fetch debug output (stderr & stdout) from a solve job
+     */
+    public function solveDebug(string $jobId): JsonResponse
+    {
+        if (! preg_match('/^[a-f0-9]{16}$/', $jobId)) {
+            return response()->json(['ok' => false, 'error' => 'Invalid job id'], 400);
+        }
+
+        $dir     = storage_path('app/vrp/jobs');
+        $outPath = "$dir/$jobId.out.json";
+        $errPath = "$dir/$jobId.err";
+
+        $stderr = is_file($errPath) ? (string) file_get_contents($errPath) : '';
+        $stdout = is_file($outPath) ? (string) file_get_contents($outPath) : '';
+
+        return response()->json([
+            'ok'     => true,
+            'stderr' => $stderr,
+            'stdout' => $stdout,
+        ]);
+    }
+
+    /**
+     * Stop a running optimization job (force kill)
+     */
+    public function stopJob(string $jobId): JsonResponse
+    {
+        if (! preg_match('/^[a-f0-9]{16}$/', $jobId)) {
+            return response()->json(['ok' => false, 'error' => 'Invalid job id'], 400);
+        }
+
+        $dir    = storage_path('app/vrp/jobs');
+        $pidPath = "$dir/$jobId.pid";
+        $inPath  = "$dir/$jobId.in.json";
+
+        // Attempt to read and kill the process
+        if (is_file($pidPath)) {
+            $pid = (int) trim(file_get_contents($pidPath));
+            if ($pid > 0) {
+                // Kill the process and any child processes
+                @exec("kill -9 $pid 2>/dev/null");
+                @exec("pkill -9 -P $pid 2>/dev/null"); // Kill children too
+            }
+            @unlink($pidPath);
+        }
+
+        // Mark job as stopped by removing the input file
+        // (isRunning() checks if .in.json exists, so this signals completion)
+        if (is_file($inPath)) {
+            @unlink($inPath);
+        }
+
+        // Clean up any stderr/stdout if they exist
+        $errPath = "$dir/$jobId.err";
+        $outPath = "$dir/$jobId.out.json";
+        if (! is_file($outPath)) {
+            // Only append "stopped" message if no output yet
+            file_put_contents($errPath, (is_file($errPath) ? file_get_contents($errPath) : '') . "\n[VRP] Job stopped by user", FILE_APPEND);
+        }
+
+        return response()->json(['ok' => true, 'message' => 'Job stopped']);
     }
 
     // ── Instance import ────────────────────────────────────────────────────
