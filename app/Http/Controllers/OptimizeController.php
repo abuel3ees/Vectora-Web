@@ -117,19 +117,11 @@ class OptimizeController extends Controller
             ->get(['id', 'name', 'email'])
             ->toArray();
 
-        $history = OptimizationHistory::where('user_id', auth()->id())
-            ->orderByDesc('created_at')
-            ->limit(50)
-            ->get()
-            ->toArray();
-
         return Inertia::render('optimize/index', [
-            'instances'        => $this->instances(),
-            'algorithms'       => self::ALGORITHMS,
-            'algorithmGroups'  => self::ALGORITHM_GROUPS,
-            'mapboxToken'      => config('services.mapbox.token'),
-            'drivers'          => $drivers,
-            'history'          => $history,
+            'instances'   => $this->instances(),
+            'algorithms'  => self::ALGORITHMS,
+            'mapboxToken' => config('services.mapbox.token'),
+            'drivers'     => $drivers,
         ]);
     }
 
@@ -137,7 +129,7 @@ class OptimizeController extends Controller
     {
         $history = OptimizationHistory::where('user_id', auth()->id())
             ->orderByDesc('created_at')
-            ->paginate(50);
+            ->paginate(50, ['id', 'instance', 'k', 'algorithm', 'num_routes', 'total_distance', 'distance_std', 'elapsed', 'valid', 'issues', 'created_at']);
 
         return Inertia::render('optimize/History', [
             'history' => $history->items(),

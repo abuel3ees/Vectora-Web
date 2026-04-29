@@ -3,7 +3,7 @@ import solve069da8 from './solve'
 import instances from './instances'
 /**
 * @see \App\Http\Controllers\OptimizeController::solve
-* @see app/Http/Controllers/OptimizeController.php:147
+* @see app/Http/Controllers/OptimizeController.php:139
 * @route '/optimize/solve'
 */
 export const solve = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -18,7 +18,7 @@ solve.definition = {
 
 /**
 * @see \App\Http\Controllers\OptimizeController::solve
-* @see app/Http/Controllers/OptimizeController.php:147
+* @see app/Http/Controllers/OptimizeController.php:139
 * @route '/optimize/solve'
 */
 solve.url = (options?: RouteQueryOptions) => {
@@ -27,7 +27,7 @@ solve.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\OptimizeController::solve
-* @see app/Http/Controllers/OptimizeController.php:147
+* @see app/Http/Controllers/OptimizeController.php:139
 * @route '/optimize/solve'
 */
 solve.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -37,7 +37,7 @@ solve.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
 /**
 * @see \App\Http\Controllers\OptimizeController::solve
-* @see app/Http/Controllers/OptimizeController.php:147
+* @see app/Http/Controllers/OptimizeController.php:139
 * @route '/optimize/solve'
 */
 const solveForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -47,7 +47,7 @@ const solveForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => 
 
 /**
 * @see \App\Http\Controllers\OptimizeController::solve
-* @see app/Http/Controllers/OptimizeController.php:147
+* @see app/Http/Controllers/OptimizeController.php:139
 * @route '/optimize/solve'
 */
 solveForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -196,7 +196,7 @@ walkthrough.form = walkthroughForm
 
 /**
 * @see \App\Http\Controllers\OptimizeController::history
-* @see app/Http/Controllers/OptimizeController.php:136
+* @see app/Http/Controllers/OptimizeController.php:128
 * @route '/optimize/history'
 */
 export const history = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -211,7 +211,7 @@ history.definition = {
 
 /**
 * @see \App\Http\Controllers\OptimizeController::history
-* @see app/Http/Controllers/OptimizeController.php:136
+* @see app/Http/Controllers/OptimizeController.php:128
 * @route '/optimize/history'
 */
 history.url = (options?: RouteQueryOptions) => {
@@ -220,7 +220,7 @@ history.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\OptimizeController::history
-* @see app/Http/Controllers/OptimizeController.php:136
+* @see app/Http/Controllers/OptimizeController.php:128
 * @route '/optimize/history'
 */
 history.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -230,7 +230,7 @@ history.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\OptimizeController::history
-* @see app/Http/Controllers/OptimizeController.php:136
+* @see app/Http/Controllers/OptimizeController.php:128
 * @route '/optimize/history'
 */
 history.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -240,7 +240,7 @@ history.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
 /**
 * @see \App\Http\Controllers\OptimizeController::history
-* @see app/Http/Controllers/OptimizeController.php:136
+* @see app/Http/Controllers/OptimizeController.php:128
 * @route '/optimize/history'
 */
 const historyForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -250,7 +250,7 @@ const historyForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> =>
 
 /**
 * @see \App\Http\Controllers\OptimizeController::history
-* @see app/Http/Controllers/OptimizeController.php:136
+* @see app/Http/Controllers/OptimizeController.php:128
 * @route '/optimize/history'
 */
 historyForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -260,7 +260,7 @@ historyForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => (
 
 /**
 * @see \App\Http\Controllers\OptimizeController::history
-* @see app/Http/Controllers/OptimizeController.php:136
+* @see app/Http/Controllers/OptimizeController.php:128
 * @route '/optimize/history'
 */
 historyForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({

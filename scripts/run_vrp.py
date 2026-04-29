@@ -78,6 +78,12 @@ PALETTE = [
     "#06b6d4", "#f97316",
 ]
 
+
+def log(message: str):
+    stamp = time.strftime("%H:%M:%S")
+    print(f"[VRP {stamp}] {message}", file=sys.stderr, flush=True)
+
+
 INSTANCE_ALIASES: Dict[str, str] = {
     "50":   "RioClaroPostToy_50_0",
     "100":  "RioClaroPostToy_100_0",
@@ -1538,8 +1544,10 @@ def load_instance(key: str):
                 for n in vo.NODES
             ]
             dm = np.asarray(vo.DIST_MATRIX, dtype=float)
+            log("Loaded legacy vrp_optimizer instance")
             return depot_d, nodes_l, dm, RIOCLARO_BBOX
         except ImportError:
+            log("Legacy vrp_optimizer instance unavailable; falling back to 50-node array")
             key = "50"  # fall back to 50-node array instance
 
     # Expand short aliases ("50" → "RioClaroPostToy_50_0", etc.)
@@ -1548,6 +1556,7 @@ def load_instance(key: str):
     # Try Python array file.
     arr_path = _find_array_file(stem)
     if arr_path is not None:
+        log(f"Loading array instance file: {arr_path}")
         mod    = _load_py_array(arr_path)
         coords = mod.node_coords   # {nid: (x, y)}
         dm_raw = mod.dist_matrix   # list-of-lists
@@ -1566,6 +1575,7 @@ def load_instance(key: str):
         raise ValueError(f"Unknown instance '{key}'. "
                          f"Tried array stems in {ARRAYS_SEARCH_PATHS} and "
                          f"JSON at {path}")
+    log(f"Loading JSON instance file: {path}")
     payload = json.loads(path.read_text())
     depot_d = payload["depot"]
     nodes_l = payload["nodes"]
@@ -1602,25 +1612,50 @@ def get_graph(bbox, instance_key):
     try:
         import osmnx as ox
     except ImportError:
+        log("OSMnx is not installed; using direct route geometry")
         return None
+
+    # Skip country-scale bboxes — OSMnx would need to fire dozens of
+    # Overpass sub-queries and could run for hours or OOM.
+    # 1.5° × 1.5° ≈ 25,000 km² is a generous city-region ceiling.
+    lat_span = bbox.get("north", 0) - bbox.get("south", 0)
+    lng_span = bbox.get("east", 0)  - bbox.get("west", 0)
+    if lat_span * lng_span > 2.25 and "place" not in bbox:
+        log(
+            f"Bbox too large for street routing "
+            f"({lat_span:.2f}° lat × {lng_span:.2f}° lng = {lat_span * lng_span:.1f}°²); "
+            "skipping OSMnx, using straight-line geometry"
+        )
+        return None
+
     cache_path = CACHE_DIR / f"graph-{instance_key}.graphml"
     if cache_path.exists():
         try:
-            return ox.load_graphml(cache_path)
-        except Exception:
+            log(f"Loading OSM graph cache: {cache_path}")
+            G = ox.load_graphml(cache_path)
+            log(f"Graph cache loaded: nodes={len(G.nodes)}, edges={len(G.edges)}")
+            return G
+        except Exception as e:
+            log(f"Graph cache load failed, refetching: {e}")
             pass
     try:
         if "place" in bbox:
+            log(f"Fetching OSM drive graph by place: {bbox['place']}")
             G = ox.graph_from_place(bbox["place"], network_type="drive")
         else:
+            log(
+                "Fetching OSM drive graph by bbox: "
+                f"N={bbox['north']}, S={bbox['south']}, E={bbox['east']}, W={bbox['west']}"
+            )
             G = ox.graph_from_bbox(
-                bbox["north"], bbox["south"], bbox["east"], bbox["west"],
+                (bbox["west"], bbox["south"], bbox["east"], bbox["north"]),
                 network_type="drive",
             )
         ox.save_graphml(G, cache_path)
+        log(f"Graph fetched and cached: nodes={len(G.nodes)}, edges={len(G.edges)}")
         return G
     except Exception as e:
-        print(f"[run_vrp] OSMnx fetch failed: {e}", file=sys.stderr)
+        log(f"OSMnx fetch failed: {e}")
         return None
 
 
@@ -1673,15 +1708,16 @@ def _make_nearest_fn(G):
 
 
 def get_snapped_coords(G, lat_lng_by_id, all_ids):
-    import osmnx as ox
     if G is None:
+        log("Skipping snapping because no street graph is available")
         return {}
     try:
         nearest_fn, latlng_from = _make_nearest_fn(G)
     except Exception as e:
-        print(f"[run_vrp] snapping setup failed: {e}", file=sys.stderr)
+        log(f"Snapping setup failed: {e}")
         return {}
     snapped = {}
+    fallback_count = 0
     for nid in all_ids:
         lat, lng = lat_lng_by_id[nid]
         try:
@@ -1690,8 +1726,10 @@ def get_snapped_coords(G, lat_lng_by_id, all_ids):
                 raise ValueError("no nearest node")
             snapped[nid] = latlng_from(osm_node_id)
         except Exception as e:
-            print(f"[run_vrp] snapping node {nid} failed: {e}", file=sys.stderr)
+            fallback_count += 1
+            log(f"Snapping node {nid} failed: {e}")
             snapped[nid] = (lat, lng)
+    log(f"Snapped {len(snapped) - fallback_count}/{len(all_ids)} nodes; fallbacks={fallback_count}")
     return snapped
 
 
@@ -1715,7 +1753,7 @@ def street_geometry(G, lat_lng_by_id, route_node_ids):
         try:
             path = nx.shortest_path(G, a, b, weight="length")
         except Exception as e:
-            print(f"[run_vrp] shortest_path {a}->{b} failed: {e}", file=sys.stderr)
+            log(f"shortest_path {a}->{b} failed: {e}")
             path = [a, b]
         for i, n in enumerate(path):
             if coords_seq and i == 0:
@@ -1761,26 +1799,33 @@ def validate_solution(sol: VRPSolution, node_ids: set) -> Tuple[bool, List[str]]
 
 # ───────────────────── main ──────────────────────────────────────────────
 def main():
-    req       = json.loads(sys.stdin.read() or "{}")
+    run_t0    = time.perf_counter()
+    raw_req   = sys.stdin.read() or "{}"
+    log(f"Received request payload: {len(raw_req)} bytes")
+    req       = json.loads(raw_req)
     liveness  = _liveness_path()
     instance  = req.get("instance", "rioclaro")
     k         = int(req.get("k", 7))
     algorithm = req.get("algorithm", "savings_parallel")
+    force     = bool(req.get("force"))
 
-    print(f"[VRP] Starting optimization: instance={instance}, k={k}, algorithm={algorithm}", file=sys.stderr)
+    if liveness:
+        log(f"Liveness marker: {liveness}")
+    log(f"Starting optimization: instance={instance}, k={k}, algorithm={algorithm}, force={force}")
 
     key_hash = hashlib.sha1(
         json.dumps({"i": instance, "k": k, "a": algorithm}, sort_keys=True).encode()
     ).hexdigest()[:16]
     cache_file = CACHE_DIR / "cache" / f"{key_hash}.json"
-    if cache_file.exists() and not req.get("force"):
-        print(f"[VRP] Cache hit: {key_hash}", file=sys.stderr)
+    log(f"Result cache key: {key_hash} ({cache_file})")
+    if cache_file.exists() and not force:
+        log(f"Result cache hit: {key_hash}")
         sys.stdout.write(cache_file.read_text())
         return
 
-    print(f"[VRP] Loading instance: {instance}", file=sys.stderr)
+    log(f"Loading instance: {instance}")
     depot_d, nodes_l, dm, bbox = load_instance(instance)
-    print(f"[VRP] Instance loaded: {len(nodes_l)} nodes, depot={depot_d['id']}", file=sys.stderr)
+    log(f"Instance loaded: nodes={len(nodes_l)}, depot={depot_d['id']}, matrix={dm.shape}")
 
     # Build Node objects.
     depot_node = Node(id=depot_d["id"], x=depot_d["x"], y=depot_d["y"], demand=0.0)
@@ -1790,52 +1835,62 @@ def main():
     node_map   = {n.id: n for n in nodes}
 
     # Build distance map (also initialises GLOBAL_MAX_DIST).
-    print(f"[VRP] Building distance matrix ({len(nodes)}×{len(nodes)})", file=sys.stderr)
+    log(f"Building distance matrix for {len(nodes)} customers")
     dist_map = build_dist_map(nodes, depot_node, dm.tolist())
+    log(f"Distance matrix ready: pairs={len(dist_map)}, max_distance={GLOBAL_MAX_DIST:.3f}")
 
     # Select algorithm.
     algo_fn = ALGORITHMS.get(algorithm)
     if algo_fn is None:
-        print(f"[run_vrp] Unknown algorithm '{algorithm}', "
-              f"falling back to savings_parallel", file=sys.stderr)
+        log(f"Unknown algorithm '{algorithm}', falling back to savings_parallel")
         algo_fn = algo_savings_parallel
 
-    print(f"[VRP] Starting solve with algorithm: {algorithm}", file=sys.stderr)
+    log(f"Starting solve with algorithm: {algorithm}")
     t0  = time.perf_counter()
     sol = algo_fn(nodes, k, depot_node, dist_map, node_map)
     elapsed = time.perf_counter() - t0
-    print(f"[VRP] Solve completed in {elapsed:.2f}s, routes={len(sol.routes)}", file=sys.stderr)
 
     # OR-Tools can return None if it fails to find a feasible solution.
     if sol is None:
-        print(f"[run_vrp] {algorithm} returned None, falling back to savings_parallel",
-              file=sys.stderr)
+        log(f"{algorithm} returned None, falling back to savings_parallel")
+        fallback_t0 = time.perf_counter()
         sol = algo_savings_parallel(nodes, k, depot_node, dist_map, node_map)
+        elapsed += time.perf_counter() - fallback_t0
+
+    log(f"Solve completed in {elapsed:.2f}s, routes={len(sol.routes)}")
 
     valid, issues = validate_solution(sol, {n.id for n in nodes})
-    print(f"[VRP] Solution validated: valid={valid}, issues={len(issues)}", file=sys.stderr)
+    empty_routes = len([r for r in sol.routes if not r.node_ids])
+    log(
+        "Route stats: "
+        f"used={sol.num_vehicles_used}, empty={empty_routes}, total_distance={sol.total_distance:.3f}, "
+        f"std={sol.distance_std:.3f}, fairness={sol.weighted_fairness:.3f}"
+    )
+    log(f"Solution validated: valid={valid}, issues={len(issues)}")
+    if issues:
+        log("Validation issues: " + "; ".join(issues[:5]) + ("; ..." if len(issues) > 5 else ""))
 
     # Geocode every node.
-    print(f"[VRP] Geocoding {len(all_ids)} nodes", file=sys.stderr)
     latlng_direct = bbox.pop("_latlng_direct", False)
     all_xy  = [(depot_d["x"], depot_d["y"])] + [(n["x"], n["y"]) for n in nodes_l]
     all_ids = [depot_d["id"]] + [n["id"] for n in nodes_l]
+    log(f"Geocoding {len(all_ids)} nodes")
     if latlng_direct:
         # x = longitude, y = latitude — use directly, no affine distortion.
-        print(f"[VRP] Using direct lat/lng coordinates", file=sys.stderr)
+        log("Using direct lat/lng coordinates")
         latlng_by_id = {nid: (xy[1], xy[0]) for nid, xy in zip(all_ids, all_xy)}
     else:
-        print(f"[VRP] Applying affine transform to lat/lng", file=sys.stderr)
+        log("Applying affine transform to lat/lng")
         latlngs = affine_to_latlng(all_xy, bbox)
         latlng_by_id = {i: ll for i, ll in zip(all_ids, latlngs)}
 
-    print(f"[VRP] Fetching OSM graph for street routing", file=sys.stderr)
+    log("Preparing OSM graph for street routing")
     G = get_graph(bbox, instance)
-    print(f"[VRP] Snapping {len(all_ids)} nodes to street graph", file=sys.stderr)
+    log(f"Snapping {len(all_ids)} nodes to street graph")
     snapped_by_id = get_snapped_coords(G, latlng_by_id, all_ids)
-    print(f"[VRP] Snapping completed: {len(snapped_by_id)} snapped nodes", file=sys.stderr)
+    log(f"Snapping completed: {len(snapped_by_id)} snapped nodes")
 
-    print(f"[VRP] Building output routes geometry", file=sys.stderr)
+    log("Building output route geometry")
     routes_out = []
     for idx, r in enumerate(sol.routes):
         if not r.node_ids:
@@ -1847,10 +1902,15 @@ def main():
         if full_ids[-1] != depot_d["id"]:
             full_ids = full_ids + [depot_d["id"]]
 
+        route_t0 = time.perf_counter()
         if G is not None:
             coords = street_geometry(G, latlng_by_id, full_ids)
         else:
             coords = [[latlng_by_id[n][1], latlng_by_id[n][0]] for n in full_ids]
+        log(
+            f"Route {idx}: stops={len(node_ids_route)}, geometry_points={len(coords)}, "
+            f"distance={r.distance:.3f}, built_in={time.perf_counter() - route_t0:.2f}s"
+        )
 
         routes_out.append({
             "route_index":      idx,
@@ -1896,11 +1956,13 @@ def main():
         "routes":   routes_out,
     }
 
-    print(f"[VRP] Finalizing output payload ({len(routes_out)} routes, {len(nodes_out)} nodes)", file=sys.stderr)
+    log(f"Finalizing output payload: routes={len(routes_out)}, nodes={len(nodes_out)}")
     if G is not None:
         cache_file.write_text(json.dumps(payload))
-        print(f"[VRP] Cached result to {cache_file}", file=sys.stderr)
-    print(f"[VRP] Optimization complete - writing result to stdout", file=sys.stderr)
+        log(f"Cached result to {cache_file}")
+    else:
+        log("Skipping result cache because street routing graph is unavailable")
+    log(f"Optimization complete in {time.perf_counter() - run_t0:.2f}s; writing JSON to stdout")
     sys.stdout.write(json.dumps(payload))
     sys.stdout.flush()
 

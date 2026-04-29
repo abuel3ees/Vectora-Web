@@ -57,6 +57,12 @@ type RaceEntry = {
     finishedAt: number | null;
 };
 
+type DebugJobMeta = {
+    label: string;
+    scope: 'compose' | 'compare' | 'precache';
+    status: 'running' | 'done' | 'failed' | 'cancelled' | 'stopped';
+};
+
 type PageProps = {
     instances: Instance[];
     algorithms: Record<string, string>;
@@ -201,6 +207,8 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
     // Debug output modal state
     const [debugOpen, setDebugOpen] = useState(false);
     const [debugJobId, setDebugJobId] = useState<string | null>(null);
+    const [debugJobOrder, setDebugJobOrder] = useState<string[]>([]);
+    const [debugJobs, setDebugJobs] = useState<Record<string, DebugJobMeta>>({});
     const [debugLogs, setDebugLogs] = useState<{ stderr: string; stdout: string } | null>(null);
     const [debugLoading, setDebugLoading] = useState(false);
     const [stopLoading, setStopLoading] = useState(false);
@@ -274,8 +282,10 @@ next.add(g);
 
     // In-memory cache: `${instance}:${k}:${algorithm}` → SolveResult
     const solveCache = useRef<Map<string, SolveResult>>(new Map());
+    const [cacheVersion, setCacheVersion] = useState(0);
+    const bumpCache = () => setCacheVersion((v) => v + 1);
 
-    // Hydrate from localStorage on mount so comparison is instant after a page reload
+    // Hydrate from localStorage on mount so cache indicators are visible immediately
     useEffect(() => {
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
@@ -290,6 +300,8 @@ solveCache.current.set(key.slice(4), JSON.parse(raw) as SolveResult);
                 } catch { /* ignore corrupt entries */ }
             }
         }
+
+        bumpCache();
     }, []);
 
     useEffect(() => {
@@ -391,10 +403,56 @@ setDebugLoading(false);
         }
     };
 
-    const openDebugViewer = (jobId: string) => {
-        setDebugOpen(true);
+    const resetDebugJobs = () => {
+        setDebugJobId(null);
+        setDebugJobOrder([]);
+        setDebugJobs({});
+        setDebugLogs(null);
+    };
+
+    const markDebugJobStatus = (jobId: string, status: DebugJobMeta['status']) => {
+        setDebugJobs(prev => prev[jobId] ? {
+            ...prev,
+            [jobId]: { ...prev[jobId], status },
+        } : prev);
+    };
+
+    const registerDebugJob = (
+        jobId: string,
+        label: string,
+        scope: DebugJobMeta['scope'],
+        openOnRegister = false,
+    ) => {
+        setDebugJobs(prev => ({
+            ...prev,
+            [jobId]: { label, scope, status: 'running' },
+        }));
+        setDebugJobOrder(prev => prev.includes(jobId) ? prev : [...prev, jobId]);
         setDebugJobId(jobId);
-        fetchDebugLogs(jobId);
+        setDebugLogs(null);
+
+        if (openOnRegister) {
+            setDebugOpen(true);
+        }
+
+        if (debugOpen || openOnRegister) {
+            fetchDebugLogs(jobId);
+        }
+    };
+
+    const openDebugViewer = (jobId?: string | null) => {
+        const selectedJobId = jobId ?? debugJobId ?? debugJobOrder[debugJobOrder.length - 1];
+
+        setDebugOpen(true);
+
+        if (selectedJobId) {
+            if (selectedJobId !== debugJobId) {
+                setDebugLogs(null);
+            }
+
+            setDebugJobId(selectedJobId);
+            fetchDebugLogs(selectedJobId);
+        }
     };
 
     const handleStopJob = async (jobId: string) => {
@@ -415,7 +473,8 @@ setDebugLoading(false);
             if (res.ok && json.ok) {
                 // Job stopped successfully, clear the loading state
                 setLoading(false);
-                setDebugJobId(null);
+                markDebugJobStatus(jobId, 'stopped');
+                fetchDebugLogs(jobId, true);
                 alert('Optimization stopped successfully.');
             } else {
                 alert('Error stopping job: ' + (json.error || 'Unknown error'));
@@ -576,6 +635,7 @@ return;
                     setError(json.error || `Solve failed (${res.status})`);
                     setLoading(false);
                     setProgress(null);
+                    markDebugJobStatus(jobId, 'failed');
 
                     return;
                 }
@@ -595,6 +655,7 @@ return;
                     setLoading(false);
                     setProgress(null);
                     setConfigOpen(false);
+                    markDebugJobStatus(jobId, 'done');
 
                     return;
                 }
@@ -607,6 +668,7 @@ setProgress(json.progress);
             } catch (e) {
                 setError(e instanceof Error ? e.message : String(e));
                 setLoading(false);
+                markDebugJobStatus(jobId, 'failed');
             }
         };
 
@@ -618,11 +680,27 @@ setProgress(json.progress);
     };
 
     const submit = async () => {
+        // Client-side cache hit — no network call needed.
+        const ck = `${instance}:${k}:${algorithm}`;
+        const cached = solveCache.current.get(ck);
+
+        if (cached) {
+            setResult(cached);
+            setResultFromCache(true);
+            setError(null);
+            setLoading(false);
+            setProgress(null);
+            setConfigOpen(false);
+
+            return;
+        }
+
         setLoading(true);
         setError(null);
         setProgress(null);
         setResult(null);
         setResultFromCache(false);
+        resetDebugJobs();
 
         try {
             const res = await fetch('/optimize/solve', {
@@ -664,8 +742,8 @@ setProgress(json.progress);
                 return;
             }
 
+            registerDebugJob(json.job_id, `Compose · ${algorithms[algorithm] ?? algorithm}`, 'compose');
             pollJob(json.job_id);
-            setDebugJobId(json.job_id);
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : String(e));
             setLoading(false);
@@ -676,9 +754,12 @@ setProgress(json.progress);
         setComparing(true);
         setError(null);
         comparisonAbortRef.current = false;
+        resetDebugJobs();
+        setDebugOpen(false);
 
         const algoList = Object.keys(algorithms);
         const now = Date.now();
+        let openedLogs = false;
 
         // Initialise all as pending
         const initial: Record<string, RaceEntry> = {};
@@ -708,6 +789,7 @@ break;
             }
 
             setRaceEntries(prev => ({ ...prev, [algo]: { ...prev[algo], status: 'running' } }));
+            let jobId: string | null = null;
 
             try {
                 const res = await fetch('/optimize/solve', {
@@ -744,11 +826,20 @@ break;
                     continue;
                 }
 
+                if (!json.job_id) {
+                    setRaceEntries(prev => ({ ...prev, [algo]: { ...prev[algo], status: 'failed', finishedAt: Date.now() } }));
+                    continue;
+                }
+
+                jobId = String(json.job_id);
+                registerDebugJob(jobId, `Compare · ${algorithms[algo] ?? algo}`, 'compare', !openedLogs);
+                openedLogs = true;
+
                 let attempts = 0;
                 let landed = false;
 
                 while (attempts < 600 && !comparisonAbortRef.current) {
-                    const statusRes = await fetch(`/optimize/solve/${json.job_id}`, {
+                    const statusRes = await fetch(`/optimize/solve/${jobId}`, {
                         credentials: 'same-origin',
                         headers: { 'Accept': 'application/json' },
                     });
@@ -766,9 +857,11 @@ break;
                             ...prev,
                             [algo]: { status: 'done', result: solved, startedAt: prev[algo]?.startedAt ?? Date.now(), finishedAt: Date.now() },
                         }));
+                        markDebugJobStatus(jobId, 'done');
                         landed = true;
                         break;
                     } else if (!statusRes.ok || !statusJson.ok) {
+                        markDebugJobStatus(jobId, 'failed');
                         break;
                     }
 
@@ -777,9 +870,14 @@ break;
                 }
 
                 if (!landed) {
+                    markDebugJobStatus(jobId, comparisonAbortRef.current ? 'cancelled' : 'failed');
                     setRaceEntries(prev => ({ ...prev, [algo]: { ...prev[algo], status: 'failed', finishedAt: Date.now() } }));
                 }
             } catch {
+                if (jobId) {
+                    markDebugJobStatus(jobId, 'failed');
+                }
+
                 setRaceEntries(prev => ({ ...prev, [algo]: { ...prev[algo], status: 'failed', finishedAt: Date.now() } }));
             }
         }
@@ -795,7 +893,10 @@ break;
     const precacheAll = async () => {
         setPrecaching(true);
         precacheAbortRef.current = false;
+        resetDebugJobs();
+        setDebugOpen(false);
         const algoList = Object.keys(algorithms);
+        let openedLogs = false;
         setPrecacheProgress({ done: 0, total: algoList.length, current: '' });
 
         for (let i = 0; i < algoList.length; i++) {
@@ -811,6 +912,8 @@ break;
 continue;
 }
 
+            let jobId: string | null = null;
+
             try {
                 const res = await fetch('/optimize/solve', {
                     method: 'POST',
@@ -824,10 +927,30 @@ continue;
 continue;
 }
 
+                if (json.status === 'done' && json.result) {
+                    const solved = json.result as SolveResult;
+                    solveCache.current.set(cacheKey, solved);
+
+                    try {
+ localStorage.setItem(`vrp:${cacheKey}`, JSON.stringify(solved));
+} catch { /* quota */ }
+
+                    continue;
+                }
+
+                if (!json.job_id) {
+continue;
+}
+
+                jobId = String(json.job_id);
+                registerDebugJob(jobId, `Pre-cache · ${algorithms[algo] ?? algo}`, 'precache', !openedLogs);
+                openedLogs = true;
+
                 let attempts = 0;
+                let landed = false;
 
                 while (attempts < 600 && !precacheAbortRef.current) {
-                    const sr = await fetch(`/optimize/solve/${json.job_id}`, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
+                    const sr = await fetch(`/optimize/solve/${jobId}`, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
                     const sj = await sr.json();
 
                     if (sr.ok && sj.ok && sj.status === 'done') {
@@ -838,15 +961,26 @@ continue;
  localStorage.setItem(`vrp:${cacheKey}`, JSON.stringify(solved)); 
 } catch { /* quota */ }
 
+                        markDebugJobStatus(jobId, 'done');
+                        landed = true;
                         break;
                     } else if (!sr.ok || !sj.ok) {
-break;
-}
+                        markDebugJobStatus(jobId, 'failed');
+                        break;
+                    }
 
                     await new Promise(r => setTimeout(r, 2000));
                     attempts++;
                 }
-            } catch { /* continue to next */ }
+
+                if (!landed) {
+                    markDebugJobStatus(jobId, precacheAbortRef.current ? 'cancelled' : 'failed');
+                }
+            } catch {
+                if (jobId) {
+                    markDebugJobStatus(jobId, 'failed');
+                }
+            }
         }
 
         setPrecaching(false);
@@ -1625,7 +1759,12 @@ return [];
     }, [result]);
 
     // Checked on every render — any change to instance/k/algorithm re-derives this.
-    const isCacheHit = solveCache.current.has(`${instance}:${k}:${algorithm}`);
+    const isCacheHit = cacheVersion >= 0 && solveCache.current.has(`${instance}:${k}:${algorithm}`);
+    const debugJobList = debugJobOrder
+        .map((id) => ({ id, meta: debugJobs[id] }))
+        .filter((job): job is { id: string; meta: DebugJobMeta } => Boolean(job.meta));
+    const selectedDebugJob = debugJobId ? debugJobs[debugJobId] : null;
+    const latestDebugJobId = debugJobList[debugJobList.length - 1]?.id ?? debugJobId;
 
     return (
         <AppLayout breadcrumbs={[{ title: 'Optimize', href: null }]}>
@@ -1732,6 +1871,7 @@ return [];
                                         {ALGO_FAMILY_GROUPS.map(({ group, isQuantum, families }) => {
                                             const isOpen = openAlgoGroups.has(group);
                                             const hasActive = families.some((f) => f.variants.some((v) => v.key === algorithm));
+                                            const cachedInGroup = families.flatMap((f) => f.variants).filter((v) => solveCache.current.has(`${instance}:${k}:${v.key}`)).length;
 
                                             return (
                                                 <div key={group} className="border border-border/30 rounded-lg overflow-hidden">
@@ -1747,6 +1887,9 @@ return [];
                                                             <span className="text-[7px] uppercase tracking-[0.38em] text-muted-foreground/55">{group}</span>
                                                             {hasActive && <span className="h-1 w-1 rounded-full bg-primary/60" />}
                                                             {isQuantum && <span className="text-[6px] uppercase tracking-[0.2em] px-1 py-0.5 border border-border/30 rounded-sm text-muted-foreground/35">QUBO</span>}
+                                                            {cachedInGroup > 0 && (
+                                                                <span className="text-[6px] uppercase tracking-[0.2em] px-1 py-0.5 border border-sky-400/25 rounded-sm text-sky-400/50">{cachedInGroup}</span>
+                                                            )}
                                                         </span>
                                                         <span className="text-[8px] text-muted-foreground/30 transition-transform duration-200" style={{ display: 'inline-block', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>›</span>
                                                     </button>
@@ -1770,21 +1913,30 @@ return [];
                                                                             {name}
                                                                         </span>
                                                                         <div className="flex items-center gap-1 flex-wrap justify-end">
-                                                                            {variants.map(({ key, label }) => (
-                                                                                <button
-                                                                                    key={key}
-                                                                                    type="button"
-                                                                                    onClick={() => setAlgorithm(key)}
-                                                                                    className={cn(
-                                                                                        'text-[7px] uppercase tracking-[0.18em] px-1.5 py-0.5 rounded border transition-all',
-                                                                                        algorithm === key
-                                                                                            ? 'border-primary/50 bg-primary/10 text-primary/80'
-                                                                                            : 'border-border/25 text-muted-foreground/35 hover:border-border/45 hover:text-muted-foreground/60'
-                                                                                    )}
-                                                                                >
-                                                                                    {label}
-                                                                                </button>
-                                                                            ))}
+                                                                            {variants.map(({ key, label }) => {
+                                                                                const isChipCached = solveCache.current.has(`${instance}:${k}:${key}`);
+
+                                                                                return (
+                                                                                    <button
+                                                                                        key={key}
+                                                                                        type="button"
+                                                                                        onClick={() => setAlgorithm(key)}
+                                                                                        className={cn(
+                                                                                            'text-[7px] uppercase tracking-[0.18em] px-1.5 py-0.5 rounded border transition-all',
+                                                                                            algorithm === key
+                                                                                                ? 'border-primary/50 bg-primary/10 text-primary/80'
+                                                                                                : isChipCached
+                                                                                                ? 'border-sky-400/30 text-sky-400/50 hover:border-sky-400/50 hover:text-sky-400/70'
+                                                                                                : 'border-border/25 text-muted-foreground/35 hover:border-border/45 hover:text-muted-foreground/60'
+                                                                                        )}
+                                                                                    >
+                                                                                        {label}
+                                                                                        {isChipCached && algorithm !== key && (
+                                                                                            <span className="ml-0.5 inline-block h-1 w-1 rounded-full bg-sky-400/60 align-middle" />
+                                                                                        )}
+                                                                                    </button>
+                                                                                );
+                                                                            })}
                                                                         </div>
                                                                     </div>
                                                                 );
@@ -1945,6 +2097,15 @@ return [];
                                                 {precaching && <Spinner />}
                                                 <span>{precaching ? 'Cancel pre-cache' : 'Pre-cache all algorithms'}</span>
                                             </button>
+                                            {latestDebugJobId && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openDebugViewer(latestDebugJobId)}
+                                                    className="w-full h-8 border border-primary/25 rounded-lg font-display text-xs tracking-tight text-primary/50 transition-all hover:border-primary/45 hover:text-primary/75 flex items-center justify-center gap-2"
+                                                >
+                                                    Output logs
+                                                </button>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -1970,6 +2131,15 @@ return [];
                                                 <div className="text-[9px] font-serif italic text-muted-foreground/45 truncate mt-0.5">{progress}</div>
                                             )}
                                         </div>
+                                        {latestDebugJobId && (
+                                            <button
+                                                type="button"
+                                                onClick={() => openDebugViewer(latestDebugJobId)}
+                                                className="ml-auto shrink-0 text-[7px] uppercase tracking-[0.3em] border border-primary/25 rounded px-2.5 py-1 text-primary/50 hover:text-primary/75 hover:border-primary/45 transition-all"
+                                            >
+                                                Logs
+                                            </button>
+                                        )}
                                     </div>
                                 )}
 
@@ -2413,16 +2583,23 @@ setImportName(f.name.replace(/\.[^.]+$/, '').toLowerCase().replace(/[^a-z0-9]/g,
             {/* ── Debug output modal ── */}
             {debugOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(4,4,10,0.82)', backdropFilter: 'blur(8px)' }}>
-                    <div className="relative w-full max-w-2xl rounded-2xl border border-border/40 bg-sidebar shadow-2xl flex flex-col overflow-hidden max-h-[80vh]">
+                    <div className="relative w-full max-w-3xl rounded-2xl border border-border/40 bg-sidebar shadow-2xl flex flex-col overflow-hidden max-h-[80vh]">
                         {/* Header */}
                         <div className="flex items-center justify-between px-6 py-5 border-b border-border/30 shrink-0">
-                            <div className="flex items-baseline gap-2.5">
+                            <div className="flex items-baseline gap-2.5 min-w-0">
                                 <span className="h-px w-4 bg-primary/50" />
-                                <h2 className="font-display italic text-xl">Debug Output</h2>
-                                <span className="flex items-center gap-1.5">
-                                    <span className="h-2 w-2 rounded-full bg-primary/60 animate-pulse" />
-                                    <span className="text-[7px] uppercase tracking-[0.3em] text-primary/50">Live</span>
-                                </span>
+                                <h2 className="font-display italic text-xl shrink-0">Output Logs</h2>
+                                {selectedDebugJob && (
+                                    <span className="truncate text-[8px] uppercase tracking-[0.25em] text-muted-foreground/45">
+                                        {selectedDebugJob.label}
+                                    </span>
+                                )}
+                                {selectedDebugJob?.status === 'running' && (
+                                    <span className="flex items-center gap-1.5 shrink-0">
+                                        <span className="h-2 w-2 rounded-full bg-primary/60 animate-pulse" />
+                                        <span className="text-[7px] uppercase tracking-[0.3em] text-primary/50">Live</span>
+                                    </span>
+                                )}
                             </div>
                             <button
                                 type="button"
@@ -2435,6 +2612,34 @@ setImportName(f.name.replace(/\.[^.]+$/, '').toLowerCase().replace(/[^a-z0-9]/g,
 
                         {/* Content */}
                         <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-4">
+                            {debugJobList.length > 1 && (
+                                <div className="flex gap-2 overflow-x-auto pb-1">
+                                    {debugJobList.map(({ id, meta }) => (
+                                        <button
+                                            key={id}
+                                            type="button"
+                                            onClick={() => openDebugViewer(id)}
+                                            className={cn(
+                                                'shrink-0 max-w-48 rounded border px-3 py-2 text-left transition-all',
+                                                id === debugJobId
+                                                    ? 'border-primary/45 bg-primary/5 text-primary/75'
+                                                    : 'border-border/25 text-muted-foreground/45 hover:border-border/45 hover:text-muted-foreground/70'
+                                            )}
+                                        >
+                                            <span className="block truncate text-[8px] uppercase tracking-[0.22em]">{meta.label}</span>
+                                            <span className="mt-1 block text-[7px] uppercase tracking-[0.25em] opacity-60">{meta.status}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                            {selectedDebugJob && debugJobId && (
+                                <div className="flex items-center justify-between gap-3 rounded border border-border/25 bg-black/15 px-3 py-2">
+                                    <span className="truncate text-[8px] uppercase tracking-[0.3em] text-muted-foreground/45">
+                                        {selectedDebugJob.scope} · {selectedDebugJob.status}
+                                    </span>
+                                    <span className="truncate font-mono text-[8px] text-muted-foreground/35">{debugJobId}</span>
+                                </div>
+                            )}
                             {debugLoading ? (
                                 <div className="flex items-center justify-center py-8">
                                     <Spinner />
@@ -2474,13 +2679,25 @@ setImportName(f.name.replace(/\.[^.]+$/, '').toLowerCase().replace(/[^a-z0-9]/g,
                         {/* Footer */}
                         <div className="border-t border-border/30 px-6 py-3 shrink-0 flex gap-2 items-center justify-between">
                             <span className="text-[7px] uppercase tracking-[0.3em] text-muted-foreground/40">Auto-updating every 500ms</span>
-                            <button
-                                type="button"
-                                onClick={() => setDebugOpen(false)}
-                                className="text-[8px] uppercase tracking-[0.3em] border border-border/25 rounded px-3 py-1.5 text-muted-foreground/50 hover:text-muted-foreground/70 hover:border-border/45 transition-all"
-                            >
-                                Close
-                            </button>
+                            <div className="flex items-center gap-2">
+                                {debugJobId && selectedDebugJob?.status === 'running' && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleStopJob(debugJobId)}
+                                        disabled={stopLoading}
+                                        className="text-[8px] uppercase tracking-[0.3em] border border-red-900/40 rounded px-3 py-1.5 text-red-500/55 hover:text-red-400/75 hover:border-red-900/70 transition-all disabled:opacity-50"
+                                    >
+                                        {stopLoading ? 'Stopping…' : 'Force stop'}
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => setDebugOpen(false)}
+                                    className="text-[8px] uppercase tracking-[0.3em] border border-border/25 rounded px-3 py-1.5 text-muted-foreground/50 hover:text-muted-foreground/70 hover:border-border/45 transition-all"
+                                >
+                                    Close
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
