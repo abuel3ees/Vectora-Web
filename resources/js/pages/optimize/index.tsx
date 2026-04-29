@@ -173,6 +173,7 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [result, setResult] = useState<SolveResult | null>(null);
+    const [resultFromCache, setResultFromCache] = useState(false);
 
     // Race mode
     const [comparing, setComparing] = useState(false);
@@ -546,10 +547,11 @@ return;
                     solveCache.current.set(ck, solved);
 
                     try {
- localStorage.setItem(`vrp:${ck}`, JSON.stringify(solved)); 
+ localStorage.setItem(`vrp:${ck}`, JSON.stringify(solved));
 } catch { /* quota */ }
 
                     setResult(solved);
+                    setResultFromCache(false);
                     setLoading(false);
                     setProgress(null);
                     setConfigOpen(false);
@@ -580,6 +582,7 @@ setProgress(json.progress);
         setError(null);
         setProgress(null);
         setResult(null);
+        setResultFromCache(false);
 
         try {
             const res = await fetch('/optimize/solve', {
@@ -609,10 +612,11 @@ setProgress(json.progress);
                 solveCache.current.set(ck, solved);
 
                 try {
- localStorage.setItem(`vrp:${ck}`, JSON.stringify(solved)); 
+ localStorage.setItem(`vrp:${ck}`, JSON.stringify(solved));
 } catch { /* quota */ }
 
                 setResult(solved);
+                setResultFromCache(true);
                 setLoading(false);
                 setProgress(null);
                 setConfigOpen(false);
@@ -1580,6 +1584,9 @@ return [];
         ];
     }, [result]);
 
+    // Checked on every render — any change to instance/k/algorithm re-derives this.
+    const isCacheHit = solveCache.current.has(`${instance}:${k}:${algorithm}`);
+
     return (
         <AppLayout breadcrumbs={[{ title: 'Optimize', href: null }]}>
             <Head title="Optimize" />
@@ -1844,15 +1851,29 @@ return [];
                                         </button>
                                     </div>
 
+                                    {isCacheHit && !loading && (
+                                        <div className="flex items-center gap-2 px-1 -mb-1">
+                                            <span className="h-px flex-1 bg-sky-400/20" />
+                                            <span className="h-1.5 w-1.5 rounded-full bg-sky-400/50" />
+                                            <span className="h-px flex-1 bg-sky-400/20" />
+                                        </div>
+                                    )}
                                     <button
                                         type="button"
                                         onClick={submit}
                                         disabled={loading}
-                                        className="relative w-full h-11 border border-border/50 rounded-lg font-display text-sm tracking-tight transition-all duration-200 hover:border-primary/60 hover:bg-primary/5 disabled:opacity-50 flex items-center justify-center gap-2"
+                                        className={cn(
+                                            'relative w-full h-11 border rounded-lg font-display text-sm tracking-tight transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-2',
+                                            isCacheHit
+                                                ? 'border-sky-400/35 hover:border-sky-400/55 hover:bg-sky-400/4'
+                                                : 'border-border/50 hover:border-primary/60 hover:bg-primary/5'
+                                        )}
                                     >
                                         {loading && <Spinner />}
                                         <span>{loading ? 'Composing…' : 'Compose routes'}</span>
-                                        {!loading && <span className="absolute right-4 font-display italic text-muted-foreground/30">→</span>}
+                                        {!loading && (
+                                            <span className={cn('absolute right-4 font-display italic', isCacheHit ? 'text-sky-400/40' : 'text-muted-foreground/30')}>→</span>
+                                        )}
                                     </button>
 
                                     {/* Advanced tools — collapsed by default */}
@@ -1938,6 +1959,9 @@ return [];
                                     <span className="font-display text-xs text-muted-foreground/55 truncate">
                                         {algorithms[algorithm as keyof typeof algorithms]} · {k}v
                                     </span>
+                                    {resultFromCache && (
+                                        <span className="h-1.5 w-1.5 rounded-full bg-sky-400/55 shrink-0" />
+                                    )}
                                 </div>
                                 <span className="font-display italic text-xs text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors shrink-0 ml-2">edit</span>
                             </button>
@@ -1946,11 +1970,13 @@ return [];
                             <div className="shrink-0 border-b border-border/40 divide-y divide-border/20">
                                 {summaryStats.map((s) => {
                                     const isFairness = s.label === 'Fairness';
+                                    const isElapsed  = s.label === 'Elapsed';
+                                    const isCachedElapsed = isElapsed && resultFromCache;
 
                                     return (
                                         <div key={s.label} className={cn('flex items-center justify-between px-4 py-2', isFairness && 'bg-primary/4')}>
-                                            <div className={cn('text-[7px] uppercase tracking-[0.38em]', isFairness ? 'text-primary/50' : 'text-muted-foreground/35')}>{s.label}</div>
-                                            <div className={cn('font-display text-sm tracking-tight tabular-nums', isFairness ? 'text-primary/80' : '')}>{s.value}</div>
+                                            <div className={cn('text-[7px] uppercase tracking-[0.38em]', isFairness ? 'text-primary/50' : isCachedElapsed ? 'text-sky-400/50' : 'text-muted-foreground/35')}>{s.label}</div>
+                                            <div className={cn('font-display text-sm tracking-tight tabular-nums', isFairness ? 'text-primary/80' : isCachedElapsed ? 'text-sky-400/70' : '')}>{s.value}</div>
                                         </div>
                                     );
                                 })}
@@ -2176,7 +2202,7 @@ return [];
                             )}
                             <HudStat label="Balance" value={result.summary.distance_std.toFixed(2)} note="σ" />
                             {result.summary.elapsed != null && (
-                                <HudStat label="Elapsed" value={result.summary.elapsed.toFixed(1)} note="s" />
+                                <HudStat label="Elapsed" value={result.summary.elapsed.toFixed(1)} note="s" fromCache={resultFromCache} />
                             )}
                         </div>
                     )}
@@ -2762,13 +2788,13 @@ function RaceLeaderboard({
     );
 }
 
-function HudStat({ label, value, note, highlight }: { label: string; value: string; note?: string; highlight?: boolean }) {
+function HudStat({ label, value, note, highlight, fromCache }: { label: string; value: string; note?: string; highlight?: boolean; fromCache?: boolean }) {
     return (
         <div className={cn('flex flex-col items-start px-5 py-3', highlight && 'bg-primary/10')}>
-            <span className={cn('text-[8px] uppercase tracking-[0.35em]', highlight ? 'text-primary/60' : 'text-white/40')}>{label}</span>
-            <span className={cn('font-display text-lg leading-tight tracking-tight tabular-nums', highlight ? 'text-primary/90' : 'text-white/90')}>
+            <span className={cn('text-[8px] uppercase tracking-[0.35em]', highlight ? 'text-primary/60' : fromCache ? 'text-sky-400/55' : 'text-white/40')}>{label}</span>
+            <span className={cn('font-display text-lg leading-tight tracking-tight tabular-nums', highlight ? 'text-primary/90' : fromCache ? 'text-sky-400/80' : 'text-white/90')}>
                 {value}
-                {note && <span className="ml-1 text-[9px] italic font-serif text-white/40">{note}</span>}
+                {note && <span className={cn('ml-1 text-[9px] italic font-serif', fromCache ? 'text-sky-400/40' : 'text-white/40')}>{note}</span>}
             </span>
         </div>
     );
