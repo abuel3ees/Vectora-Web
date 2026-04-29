@@ -1,4 +1,5 @@
 import { Head, router } from '@inertiajs/react';
+import { platformAuthenticatorIsAvailable, startAuthentication, startRegistration } from '@simplewebauthn/browser';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -63,6 +64,9 @@ type PageProps = {
     mapboxToken: string | null;
     drivers: Driver[];
 };
+
+type RegistrationOptionsJSON = Parameters<typeof startRegistration>[0]['optionsJSON'];
+type AuthenticationOptionsJSON = Parameters<typeof startAuthentication>[0]['optionsJSON'];
 
 const VEHICLE_RECOMMENDATIONS: Record<number, number> = {
     50: 15,
@@ -144,7 +148,7 @@ const ALGO_FAMILY_GROUPS: { group: string; isQuantum?: boolean; families: AlgoFa
 ];
 
 
-const VEHICLE_CONFIRMATION_PHRASE = 'yes i want to';
+const VEHICLE_CONFIRMATION_PHRASE = 'email and password';
 const MIN_VEHICLES = 2;
 const MAX_VEHICLES = 100;
 
@@ -207,8 +211,9 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
     const [confirmChangeOpen, setConfirmChangeOpen] = useState(false);
     const [pendingVehicles, setPendingVehicles] = useState<number | null>(null);
     const [confirmationInput, setConfirmationInput] = useState('');
-    const [useWebAuthn, setUseWebAuthn] = useState(false);
-    const [passkeyAvailable, setPasskeyAvailable] = useState(false);
+    const [useFingerprint, setUseFingerprint] = useState(false);
+    const [fingerprintRegistered, setFingerprintRegistered] = useState(false);
+    const [fingerprintSupported, setFingerprintSupported] = useState(false);
     const [biometricLoading, setBiometricLoading] = useState(false);
     const [biometricError, setBiometricError] = useState<string | null>(null);
 
@@ -288,15 +293,18 @@ solveCache.current.set(key.slice(4), JSON.parse(raw) as SolveResult);
     }, []);
 
     useEffect(() => {
-        if (!window.PublicKeyCredential || !navigator.credentials || !window.isSecureContext) {
-            setPasskeyAvailable(false);
+        platformAuthenticatorIsAvailable()
+            .then((ok) => {
+                setFingerprintSupported(ok);
 
-            return;
-        }
-
-        window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
-            .then(setPasskeyAvailable)
-            .catch(() => setPasskeyAvailable(false));
+                if (ok) {
+                    fetch('/webauthn/status', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+                        .then((r) => r.json())
+                        .then((d: { registered: boolean }) => setFingerprintRegistered(d.registered === true))
+                        .catch(() => {});
+                }
+            })
+            .catch(() => setFingerprintSupported(false));
     }, []);
 
     const mapContainer = useRef<HTMLDivElement | null>(null);
@@ -309,6 +317,32 @@ solveCache.current.set(key.slice(4), JSON.parse(raw) as SolveResult);
 
     const csrf = () =>
         (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement | null)?.content ?? '';
+
+    const webAuthnHeaders = () => ({
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': csrf(),
+    });
+
+    const postWebAuthnJson = async <T,>(url: string, body?: unknown): Promise<T> => {
+        const res = await fetch(url, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: webAuthnHeaders(),
+            body: JSON.stringify(body ?? {}),
+        });
+
+        if (!res.ok) {
+            throw new Error(`WebAuthn request failed (${res.status})`);
+        }
+
+        if (res.status === 204) {
+            return undefined as T;
+        }
+
+        return await res.json() as T;
+    };
 
     // Greedy bin-packing: sort routes by distance desc, assign each to the
     // driver with the lowest cumulative distance so far.
@@ -397,7 +431,7 @@ setDebugLoading(false);
         setConfirmChangeOpen(false);
         setPendingVehicles(null);
         setConfirmationInput('');
-        setUseWebAuthn(false);
+        setUseFingerprint(false);
         setBiometricLoading(false);
         setBiometricError(null);
     };
@@ -416,7 +450,7 @@ return;
 
         setPendingVehicles(nextVehicles);
         setConfirmationInput('');
-        setUseWebAuthn(passkeyAvailable);
+        setUseFingerprint(fingerprintRegistered && fingerprintSupported);
         setBiometricLoading(false);
         setBiometricError(null);
         setConfirmChangeOpen(true);
@@ -444,40 +478,26 @@ return;
 return;
 }
 
-        if (useWebAuthn) {
-            if (!passkeyAvailable) {
-                setBiometricError('Passkey or biometric confirmation is not available in this browser.');
-                setUseWebAuthn(false);
-
-                return;
-            }
-
+        if (useFingerprint) {
             setBiometricLoading(true);
             setBiometricError(null);
 
             try {
-                const challenge = crypto.getRandomValues(new Uint8Array(32));
-                const assertion = await navigator.credentials.get({
-                    publicKey: {
-                        challenge,
-                        timeout: 60000,
-                        userVerification: 'required',
-                    },
-                });
+                const options = await postWebAuthnJson<AuthenticationOptionsJSON>('/webauthn/confirm/options');
+                const assertion = await startAuthentication({ optionsJSON: options });
+                const confirmation = await postWebAuthnJson<{ ok?: boolean }>('/webauthn/confirm', assertion);
 
-                if (!assertion) {
-                    setBiometricError('Authentication cancelled.');
-                    setBiometricLoading(false);
-
-                    return;
+                if (confirmation?.ok === false) {
+                    throw new Error('Fingerprint authentication failed.');
                 }
 
                 applyVehicleCount(pendingVehicles);
-            } catch (err: unknown) {
-                const errorName = err instanceof DOMException ? err.name : '';
-                const errorMessage = err instanceof Error ? err.message : 'Passkey authentication failed.';
+            } catch (error) {
+                const errName = error instanceof Error ? error.name : '';
+                const errMsg = error instanceof Error ? error.message : 'Fingerprint authentication failed.';
+                const cancelled = errName === 'NotAllowedError' || errName === 'AbortError' || /cancel|not completed/i.test(errMsg);
 
-                setBiometricError(errorName === 'NotAllowedError' ? 'Authentication cancelled or not available.' : errorMessage);
+                setBiometricError(cancelled ? 'Authentication cancelled.' : errMsg);
                 setBiometricLoading(false);
             }
 
@@ -491,6 +511,26 @@ return;
         }
 
         applyVehicleCount(pendingVehicles);
+    };
+
+    const handleRegisterFingerprint = async () => {
+        setBiometricLoading(true);
+        setBiometricError(null);
+
+        try {
+            const options = await postWebAuthnJson<RegistrationOptionsJSON>('/webauthn/register/options');
+            const credential = await startRegistration({ optionsJSON: options });
+
+            await postWebAuthnJson<void>('/webauthn/register', credential);
+            setFingerprintRegistered(true);
+            setUseFingerprint(true);
+        } catch (error) {
+            const errMsg = error instanceof Error ? error.message : 'Fingerprint setup failed. Please try again.';
+
+            setBiometricError(/cancel|not completed/i.test(errMsg) ? 'Fingerprint setup cancelled.' : errMsg);
+        } finally {
+            setBiometricLoading(false);
+        }
     };
 
     // Auto-poll debug logs when modal is open
@@ -2472,47 +2512,60 @@ setImportName(f.name.replace(/\.[^.]+$/, '').toLowerCase().replace(/[^a-z0-9]/g,
                             </div>
 
                             {/* Biometric loading state */}
-                            {useWebAuthn && biometricLoading && (
+                            {biometricLoading && (
                                 <div className="flex flex-col items-center justify-center gap-3 py-6">
                                     <div className="relative w-12 h-12 flex items-center justify-center">
                                         <div className="absolute inset-0 rounded-full border-2 border-primary/20 animate-spin" />
                                         <div className="font-display italic text-xl text-primary/70">id</div>
                                     </div>
-                                    <p className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/60 text-center">Waiting for passkey</p>
+                                    <p className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/60 text-center">
+                                        {useFingerprint ? 'Waiting for fingerprint' : 'Processing…'}
+                                    </p>
                                 </div>
                             )}
 
-                            {/* Biometric error */}
-                            {useWebAuthn && biometricError && !biometricLoading && (
+                            {/* Error */}
+                            {biometricError && !biometricLoading && (
                                 <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3">
                                     <p className="text-[8px] uppercase tracking-[0.3em] text-destructive/70 font-semibold mb-1">Authentication failed</p>
                                     <p className="text-[7px] text-destructive/60">{biometricError}</p>
                                 </div>
                             )}
 
-                            {/* WebAuthn option (if available) */}
-                            {passkeyAvailable && !biometricLoading && (
+                            {/* Set up fingerprint (supported but not yet registered) */}
+                            {fingerprintSupported && !fingerprintRegistered && !biometricLoading && (
+                                <button
+                                    type="button"
+                                    onClick={handleRegisterFingerprint}
+                                    className="flex items-center justify-between px-4 py-2.5 rounded-lg border border-border/25 hover:border-primary/40 hover:text-primary text-muted-foreground/50 transition-all"
+                                >
+                                    <span className="text-[8px] uppercase tracking-[0.3em]">Set up fingerprint</span>
+                                    <span className="text-sm opacity-50">↗</span>
+                                </button>
+                            )}
+
+                            {/* Toggle fingerprint (registered) */}
+                            {fingerprintSupported && fingerprintRegistered && !biometricLoading && (
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        setUseWebAuthn(!useWebAuthn);
+                                        setUseFingerprint(!useFingerprint);
                                         setBiometricError(null);
                                     }}
-                                    disabled={biometricLoading}
                                     className={cn(
                                         'flex items-center justify-between px-4 py-2.5 rounded-lg border transition-all',
-                                        useWebAuthn
+                                        useFingerprint
                                             ? 'border-primary/40 bg-primary/5 text-primary'
                                             : 'border-border/25 hover:border-border/45 text-muted-foreground/50'
                                     )}
                                 >
-                                    <span className="text-[8px] uppercase tracking-[0.3em]">Use passkey/biometric</span>
-                                    <span className="text-sm">{useWebAuthn ? '✓' : '○'}</span>
+                                    <span className="text-[8px] uppercase tracking-[0.3em]">Use fingerprint</span>
+                                    <span className="text-sm">{useFingerprint ? '✓' : '○'}</span>
                                 </button>
                             )}
 
-                            {/* Text confirmation (fallback or required) */}
-                            {!useWebAuthn && (
+                            {/* Text confirmation (fallback) */}
+                            {!useFingerprint && !biometricLoading && (
                                 <div>
                                     <label className="text-[7px] uppercase tracking-[0.35em] text-muted-foreground/50 block mb-2">
                                         Type "<span className="font-semibold text-primary/70">{VEHICLE_CONFIRMATION_PHRASE}</span>" to confirm
@@ -2550,10 +2603,10 @@ handleConfirmVehicleChange();
                             <button
                                 type="button"
                                 onClick={handleConfirmVehicleChange}
-                                disabled={biometricLoading || (!useWebAuthn && confirmationInput.trim().toLowerCase() !== VEHICLE_CONFIRMATION_PHRASE)}
+                                disabled={biometricLoading || (!useFingerprint && confirmationInput.trim().toLowerCase() !== VEHICLE_CONFIRMATION_PHRASE)}
                                 className={cn(
                                     'text-[8px] uppercase tracking-[0.3em] border rounded px-3 py-1.5 transition-all',
-                                    biometricLoading || (!useWebAuthn && confirmationInput.trim().toLowerCase() !== VEHICLE_CONFIRMATION_PHRASE)
+                                    biometricLoading || (!useFingerprint && confirmationInput.trim().toLowerCase() !== VEHICLE_CONFIRMATION_PHRASE)
                                         ? 'border-border/15 text-muted-foreground/30 cursor-not-allowed'
                                         : 'border-primary/40 text-primary/70 hover:border-primary/60 hover:text-primary'
                                 )}

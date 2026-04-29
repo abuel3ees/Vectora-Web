@@ -1,4 +1,5 @@
-import { Link, usePage } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
+import { LogOut } from 'lucide-react';
 import { CommandPalette } from '@/components/command-palette';
 import {
     Sidebar,
@@ -9,7 +10,7 @@ import {
     SidebarProvider,
 } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
-import { dashboard } from '@/routes';
+import { dashboard, logout } from '@/routes';
 import type { AppLayoutProps } from '@/types';
 
 type NavEntry = { numeral: string; label: string; href: string; italic?: boolean; nested?: boolean };
@@ -115,6 +116,16 @@ export default function AppSidebarLayout({ children, breadcrumbs = [] }: AppLayo
                             <div className="font-display text-sm text-foreground mt-1 group-hover:italic transition-all">Settings &amp; correspondence</div>
                         </div>
                         <span className="font-display italic text-muted-foreground group-hover:text-foreground transition-colors">→</span>
+                    </Link>
+                    <Link
+                        href={logout()}
+                        as="button"
+                        onClick={() => router.flushAll()}
+                        data-test="sidebar-logout-button"
+                        className="mt-5 flex w-full items-center justify-between rounded-sm border border-border/60 px-3 py-2 text-left text-[10px] uppercase tracking-[0.28em] text-muted-foreground transition-colors hover:border-destructive/50 hover:text-destructive"
+                    >
+                        <span>Log out</span>
+                        <LogOut className="size-4" />
                     </Link>
                     <div className="mt-5 flex items-center justify-between">
                         <p className="text-[10px] italic font-serif text-muted-foreground/70 leading-relaxed">

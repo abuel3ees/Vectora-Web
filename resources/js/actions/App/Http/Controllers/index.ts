@@ -1,3 +1,5 @@
+import WebAuthn from './WebAuthn'
+import WebAuthnConfirmController from './WebAuthnConfirmController'
 import AppSettingsController from './AppSettingsController'
 import DashboardController from './DashboardController'
 import UserController from './UserController'
@@ -13,6 +15,8 @@ import DriverStatsController from './DriverStatsController'
 import Settings from './Settings'
 
 const Controllers = {
+    WebAuthn: Object.assign(WebAuthn, WebAuthn),
+    WebAuthnConfirmController: Object.assign(WebAuthnConfirmController, WebAuthnConfirmController),
     AppSettingsController: Object.assign(AppSettingsController, AppSettingsController),
     DashboardController: Object.assign(DashboardController, DashboardController),
     UserController: Object.assign(UserController, UserController),

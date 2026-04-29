@@ -15,7 +15,21 @@ Route::inertia('/', 'welcome', [
     'canRegister' => Features::enabled(Features::registration()),
 ])->name('home');
 
+Route::middleware('guest')->prefix('webauthn')->name('webauthn.')->group(function () {
+    Route::post('login/options', [App\Http\Controllers\WebAuthn\WebAuthnLoginController::class, 'options'])->name('login.options');
+    Route::post('login',         [App\Http\Controllers\WebAuthn\WebAuthnLoginController::class, 'login'])->name('login');
+});
+
 Route::middleware(['auth', 'verified'])->group(function () {
+    // Fingerprint / WebAuthn step-up authentication
+    Route::prefix('webauthn')->name('webauthn.')->group(function () {
+        Route::post('register/options', [App\Http\Controllers\WebAuthnConfirmController::class, 'registerOptions'])->name('register.options');
+        Route::post('register',         [App\Http\Controllers\WebAuthnConfirmController::class, 'register'])->name('register');
+        Route::get('status',            [App\Http\Controllers\WebAuthnConfirmController::class, 'status'])->name('status');
+        Route::post('confirm/options',  [App\Http\Controllers\WebAuthnConfirmController::class, 'confirmOptions'])->name('confirm.options');
+        Route::post('confirm',          [App\Http\Controllers\WebAuthnConfirmController::class, 'confirm'])->name('confirm');
+    });
+
     Route::get('settings/developer', [App\Http\Controllers\AppSettingsController::class, 'developer'])->name('settings.developer');
     Route::patch('settings/developer', [App\Http\Controllers\AppSettingsController::class, 'updateDeveloper']);
 
