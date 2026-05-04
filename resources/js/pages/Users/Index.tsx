@@ -36,7 +36,7 @@ export default function Index({ users, filters: _filters }: IndexProps) {
                 initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, ease: 'easeOut' }}
-                className="px-8 md:px-12 pt-14 pb-10"
+                className="px-4 md:px-6 pt-14 pb-10"
             >
                 <div className="flex items-end justify-between gap-8 border-b border-border/60 pb-8">
                     <div>
@@ -61,7 +61,7 @@ export default function Index({ users, filters: _filters }: IndexProps) {
             </motion.section>
 
             {/* Ledger of figures */}
-            <section className="px-8 md:px-12">
+            <section className="px-4 md:px-6">
                 <div className="grid grid-cols-1 sm:grid-cols-3 border border-border/60 rounded-2xl overflow-hidden divide-y sm:divide-y-0 sm:divide-x divide-border/60">
                     <FigureCell label="Total members" value={users.data.length} note="in the registry" />
                     <FigureCell label="With roles"    value={withRoles}          note="assigned permissions" />
@@ -74,7 +74,7 @@ export default function Index({ users, filters: _filters }: IndexProps) {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.2 }}
-                className="px-8 md:px-12 pb-16"
+                className="px-4 md:px-6 pb-16"
             >
                 <div className="flex items-end justify-between gap-6 mb-6 mt-10">
                     <div>

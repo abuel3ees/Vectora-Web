@@ -80,7 +80,7 @@ export default function DashboardPage({ stats, activeRoutes, fleet, recent, seri
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: 'easeOut' }}
-        className="relative px-8 md:px-12 pt-14 pb-10"
+        className="relative px-4 md:px-6 pt-14 pb-10"
       >
         <div className="flex items-baseline justify-between gap-8 border-b border-border/60 pb-8">
           <div>
@@ -113,7 +113,7 @@ export default function DashboardPage({ stats, activeRoutes, fleet, recent, seri
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.1 }}
-        className="px-8 md:px-12"
+        className="px-4 md:px-6"
       >
         <StatsCards stats={stats} />
       </motion.section>
@@ -122,7 +122,7 @@ export default function DashboardPage({ stats, activeRoutes, fleet, recent, seri
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.15 }}
-        className="px-8 md:px-12"
+        className="px-4 md:px-6"
       >
         <DriverStatsCard />
       </motion.section>
@@ -131,7 +131,7 @@ export default function DashboardPage({ stats, activeRoutes, fleet, recent, seri
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.2 }}
-        className="px-8 md:px-12"
+        className="px-4 md:px-6"
       >
         <SectionHead eyebrow="Chapter I" title="Fleet in motion" note="Positions updating continuously" />
         <div className="grid gap-px bg-border/60 rounded-2xl overflow-hidden border border-border/60 lg:grid-cols-3">
@@ -152,7 +152,7 @@ export default function DashboardPage({ stats, activeRoutes, fleet, recent, seri
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.3 }}
-        className="px-8 md:px-12"
+        className="px-4 md:px-6"
       >
         <SectionHead eyebrow="Chapter II" title="The day's movement" note="Routes & activity" />
         <div className="grid gap-px bg-border/60 rounded-2xl overflow-hidden border border-border/60 lg:grid-cols-3">
@@ -169,7 +169,7 @@ export default function DashboardPage({ stats, activeRoutes, fleet, recent, seri
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.4 }}
-        className="px-8 md:px-12"
+        className="px-4 md:px-6"
       >
         <SectionHead eyebrow="Chapter III" title="Optimization, charted" note="A quiet study of efficiency" />
         <div className="rounded-2xl border border-border/60 bg-background overflow-hidden">
@@ -181,7 +181,7 @@ export default function DashboardPage({ stats, activeRoutes, fleet, recent, seri
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.5 }}
-        className="px-8 md:px-12 pb-16"
+        className="px-4 md:px-6 pb-16"
       >
         <SectionHead eyebrow="Chapter IV · Dispatch" title="Message a driver" note="Instructions, alerts & notes" />
         <div className="rounded-2xl border border-border/60 bg-background overflow-hidden">

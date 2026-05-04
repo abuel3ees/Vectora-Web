@@ -8,6 +8,22 @@ import SettingsLayout from '@/layouts/settings/layout';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
+const selfWrappedPages = new Set([
+    'DeliveryProofs',
+    'Routes/Create',
+    'Routes/Edit',
+    'Routes/Index',
+    'Routes/Show',
+    'Users/Create',
+    'Users/Edit',
+    'Users/Index',
+    'analytics/index',
+    'dashboard',
+    'fleet/index',
+    'operations/index',
+    'optimize/index',
+]);
+
 createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),
     layout: (name) => {
@@ -19,6 +35,8 @@ createInertiaApp({
                 return AuthLayout;
             case name.startsWith('settings/'):
                 return [AppLayout, SettingsLayout];
+            case selfWrappedPages.has(name):
+                return null;
             default:
                 return AppLayout;
         }

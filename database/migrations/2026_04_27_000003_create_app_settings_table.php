@@ -16,10 +16,18 @@ return new class extends Migration
         });
 
         DB::table('app_settings')->insert([
-            'key'        => 'test_driver_quick_login',
-            'value'      => 'false',
-            'created_at' => now(),
-            'updated_at' => now(),
+            [
+                'key'        => 'test_driver_quick_login',
+                'value'      => 'false',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'key'        => 'mobile_theme_key',
+                'value'      => 'vectora',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
         ]);
     }
 

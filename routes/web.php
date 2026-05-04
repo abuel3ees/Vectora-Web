@@ -32,6 +32,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('settings/developer', [App\Http\Controllers\AppSettingsController::class, 'developer'])->name('settings.developer');
     Route::patch('settings/developer', [App\Http\Controllers\AppSettingsController::class, 'updateDeveloper']);
+    Route::get('settings/mobile-theme', [App\Http\Controllers\AppSettingsController::class, 'mobileTheme'])->name('settings.mobile-theme');
+    Route::patch('settings/mobile-theme', [App\Http\Controllers\AppSettingsController::class, 'updateMobileTheme']);
 
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('dashboard/live-locations', [DashboardController::class, 'liveLocations'])

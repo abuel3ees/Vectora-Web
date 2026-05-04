@@ -91,7 +91,7 @@ export default function FleetIndex({ drivers, summary }: { drivers: Driver[]; su
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, ease: 'easeOut' }}
-                className="px-8 md:px-12 pt-14 pb-10"
+                className="px-4 md:px-6 pt-14 pb-10"
             >
                 {/* Header */}
                 <div className="border-b border-border/60 pb-10 mb-10">

@@ -175,7 +175,7 @@ return <ArrowDown className="size-3 text-primary" />;
                 initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, ease: 'easeOut' }}
-                className="px-8 md:px-12 pt-14 pb-10"
+                className="px-4 md:px-6 pt-14 pb-10"
             >
                 <div className="flex items-end justify-between gap-8 border-b border-border/60 pb-8">
                     <div>
@@ -200,7 +200,7 @@ return <ArrowDown className="size-3 text-primary" />;
             </motion.section>
 
             {/* Figures */}
-            <section className="px-8 md:px-12">
+            <section className="px-4 md:px-6">
                 <div className="grid grid-cols-1 sm:grid-cols-3 border border-border/60 rounded-2xl overflow-hidden divide-y sm:divide-y-0 sm:divide-x divide-border/60">
                     <Figure label="Pending"     value={pending}    note="awaiting departure" />
                     <Figure label="In progress" value={inProgress} note="currently in motion" />
@@ -213,7 +213,7 @@ return <ArrowDown className="size-3 text-primary" />;
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.1 }}
-                className="px-8 md:px-12 mt-8"
+                className="px-4 md:px-6 mt-8"
             >
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
@@ -393,7 +393,7 @@ return <ArrowDown className="size-3 text-primary" />;
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.2 }}
-                className="px-8 md:px-12 pb-16"
+                className="px-4 md:px-6 pb-16"
             >
                 <div className="flex items-end justify-between gap-6 mb-6 mt-6">
                     <div>

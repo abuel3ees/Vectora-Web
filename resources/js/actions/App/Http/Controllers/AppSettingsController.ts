@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition } from './../../../../wayfinder'
 /**
 * @see \App\Http\Controllers\AppSettingsController::developer
-* @see app/Http/Controllers/AppSettingsController.php:13
+* @see app/Http/Controllers/AppSettingsController.php:18
 * @route '/settings/developer'
 */
 export const developer = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -16,7 +16,7 @@ developer.definition = {
 
 /**
 * @see \App\Http\Controllers\AppSettingsController::developer
-* @see app/Http/Controllers/AppSettingsController.php:13
+* @see app/Http/Controllers/AppSettingsController.php:18
 * @route '/settings/developer'
 */
 developer.url = (options?: RouteQueryOptions) => {
@@ -25,7 +25,7 @@ developer.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\AppSettingsController::developer
-* @see app/Http/Controllers/AppSettingsController.php:13
+* @see app/Http/Controllers/AppSettingsController.php:18
 * @route '/settings/developer'
 */
 developer.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -35,7 +35,7 @@ developer.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\AppSettingsController::developer
-* @see app/Http/Controllers/AppSettingsController.php:13
+* @see app/Http/Controllers/AppSettingsController.php:18
 * @route '/settings/developer'
 */
 developer.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -45,7 +45,7 @@ developer.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
 /**
 * @see \App\Http\Controllers\AppSettingsController::developer
-* @see app/Http/Controllers/AppSettingsController.php:13
+* @see app/Http/Controllers/AppSettingsController.php:18
 * @route '/settings/developer'
 */
 const developerForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -55,7 +55,7 @@ const developerForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> 
 
 /**
 * @see \App\Http\Controllers\AppSettingsController::developer
-* @see app/Http/Controllers/AppSettingsController.php:13
+* @see app/Http/Controllers/AppSettingsController.php:18
 * @route '/settings/developer'
 */
 developerForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -65,7 +65,7 @@ developerForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> =>
 
 /**
 * @see \App\Http\Controllers\AppSettingsController::developer
-* @see app/Http/Controllers/AppSettingsController.php:13
+* @see app/Http/Controllers/AppSettingsController.php:18
 * @route '/settings/developer'
 */
 developerForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -82,7 +82,7 @@ developer.form = developerForm
 
 /**
 * @see \App\Http\Controllers\AppSettingsController::updateDeveloper
-* @see app/Http/Controllers/AppSettingsController.php:20
+* @see app/Http/Controllers/AppSettingsController.php:25
 * @route '/settings/developer'
 */
 export const updateDeveloper = (options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
@@ -97,7 +97,7 @@ updateDeveloper.definition = {
 
 /**
 * @see \App\Http\Controllers\AppSettingsController::updateDeveloper
-* @see app/Http/Controllers/AppSettingsController.php:20
+* @see app/Http/Controllers/AppSettingsController.php:25
 * @route '/settings/developer'
 */
 updateDeveloper.url = (options?: RouteQueryOptions) => {
@@ -106,7 +106,7 @@ updateDeveloper.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\AppSettingsController::updateDeveloper
-* @see app/Http/Controllers/AppSettingsController.php:20
+* @see app/Http/Controllers/AppSettingsController.php:25
 * @route '/settings/developer'
 */
 updateDeveloper.patch = (options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
@@ -116,7 +116,7 @@ updateDeveloper.patch = (options?: RouteQueryOptions): RouteDefinition<'patch'> 
 
 /**
 * @see \App\Http\Controllers\AppSettingsController::updateDeveloper
-* @see app/Http/Controllers/AppSettingsController.php:20
+* @see app/Http/Controllers/AppSettingsController.php:25
 * @route '/settings/developer'
 */
 const updateDeveloperForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -131,7 +131,7 @@ const updateDeveloperForm = (options?: RouteQueryOptions): RouteFormDefinition<'
 
 /**
 * @see \App\Http\Controllers\AppSettingsController::updateDeveloper
-* @see app/Http/Controllers/AppSettingsController.php:20
+* @see app/Http/Controllers/AppSettingsController.php:25
 * @route '/settings/developer'
 */
 updateDeveloperForm.patch = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -147,8 +147,155 @@ updateDeveloperForm.patch = (options?: RouteQueryOptions): RouteFormDefinition<'
 updateDeveloper.form = updateDeveloperForm
 
 /**
+* @see \App\Http\Controllers\AppSettingsController::mobileTheme
+* @see app/Http/Controllers/AppSettingsController.php:35
+* @route '/settings/mobile-theme'
+*/
+export const mobileTheme = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: mobileTheme.url(options),
+    method: 'get',
+})
+
+mobileTheme.definition = {
+    methods: ["get","head"],
+    url: '/settings/mobile-theme',
+} satisfies RouteDefinition<["get","head"]>
+
+/**
+* @see \App\Http\Controllers\AppSettingsController::mobileTheme
+* @see app/Http/Controllers/AppSettingsController.php:35
+* @route '/settings/mobile-theme'
+*/
+mobileTheme.url = (options?: RouteQueryOptions) => {
+    return mobileTheme.definition.url + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\AppSettingsController::mobileTheme
+* @see app/Http/Controllers/AppSettingsController.php:35
+* @route '/settings/mobile-theme'
+*/
+mobileTheme.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: mobileTheme.url(options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\AppSettingsController::mobileTheme
+* @see app/Http/Controllers/AppSettingsController.php:35
+* @route '/settings/mobile-theme'
+*/
+mobileTheme.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
+    url: mobileTheme.url(options),
+    method: 'head',
+})
+
+/**
+* @see \App\Http\Controllers\AppSettingsController::mobileTheme
+* @see app/Http/Controllers/AppSettingsController.php:35
+* @route '/settings/mobile-theme'
+*/
+const mobileThemeForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: mobileTheme.url(options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\AppSettingsController::mobileTheme
+* @see app/Http/Controllers/AppSettingsController.php:35
+* @route '/settings/mobile-theme'
+*/
+mobileThemeForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: mobileTheme.url(options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\AppSettingsController::mobileTheme
+* @see app/Http/Controllers/AppSettingsController.php:35
+* @route '/settings/mobile-theme'
+*/
+mobileThemeForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: mobileTheme.url({
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'HEAD',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'get',
+})
+
+mobileTheme.form = mobileThemeForm
+
+/**
+* @see \App\Http\Controllers\AppSettingsController::updateMobileTheme
+* @see app/Http/Controllers/AppSettingsController.php:43
+* @route '/settings/mobile-theme'
+*/
+export const updateMobileTheme = (options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
+    url: updateMobileTheme.url(options),
+    method: 'patch',
+})
+
+updateMobileTheme.definition = {
+    methods: ["patch"],
+    url: '/settings/mobile-theme',
+} satisfies RouteDefinition<["patch"]>
+
+/**
+* @see \App\Http\Controllers\AppSettingsController::updateMobileTheme
+* @see app/Http/Controllers/AppSettingsController.php:43
+* @route '/settings/mobile-theme'
+*/
+updateMobileTheme.url = (options?: RouteQueryOptions) => {
+    return updateMobileTheme.definition.url + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\AppSettingsController::updateMobileTheme
+* @see app/Http/Controllers/AppSettingsController.php:43
+* @route '/settings/mobile-theme'
+*/
+updateMobileTheme.patch = (options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
+    url: updateMobileTheme.url(options),
+    method: 'patch',
+})
+
+/**
+* @see \App\Http\Controllers\AppSettingsController::updateMobileTheme
+* @see app/Http/Controllers/AppSettingsController.php:43
+* @route '/settings/mobile-theme'
+*/
+const updateMobileThemeForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: updateMobileTheme.url({
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'PATCH',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\AppSettingsController::updateMobileTheme
+* @see app/Http/Controllers/AppSettingsController.php:43
+* @route '/settings/mobile-theme'
+*/
+updateMobileThemeForm.patch = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: updateMobileTheme.url({
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'PATCH',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'post',
+})
+
+updateMobileTheme.form = updateMobileThemeForm
+
+/**
 * @see \App\Http\Controllers\AppSettingsController::publicConfig
-* @see app/Http/Controllers/AppSettingsController.php:30
+* @see app/Http/Controllers/AppSettingsController.php:54
 * @route '/api/driver/public-config'
 */
 export const publicConfig = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -163,7 +310,7 @@ publicConfig.definition = {
 
 /**
 * @see \App\Http\Controllers\AppSettingsController::publicConfig
-* @see app/Http/Controllers/AppSettingsController.php:30
+* @see app/Http/Controllers/AppSettingsController.php:54
 * @route '/api/driver/public-config'
 */
 publicConfig.url = (options?: RouteQueryOptions) => {
@@ -172,7 +319,7 @@ publicConfig.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\AppSettingsController::publicConfig
-* @see app/Http/Controllers/AppSettingsController.php:30
+* @see app/Http/Controllers/AppSettingsController.php:54
 * @route '/api/driver/public-config'
 */
 publicConfig.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -182,7 +329,7 @@ publicConfig.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\AppSettingsController::publicConfig
-* @see app/Http/Controllers/AppSettingsController.php:30
+* @see app/Http/Controllers/AppSettingsController.php:54
 * @route '/api/driver/public-config'
 */
 publicConfig.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -192,7 +339,7 @@ publicConfig.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
 /**
 * @see \App\Http\Controllers\AppSettingsController::publicConfig
-* @see app/Http/Controllers/AppSettingsController.php:30
+* @see app/Http/Controllers/AppSettingsController.php:54
 * @route '/api/driver/public-config'
 */
 const publicConfigForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -202,7 +349,7 @@ const publicConfigForm = (options?: RouteQueryOptions): RouteFormDefinition<'get
 
 /**
 * @see \App\Http\Controllers\AppSettingsController::publicConfig
-* @see app/Http/Controllers/AppSettingsController.php:30
+* @see app/Http/Controllers/AppSettingsController.php:54
 * @route '/api/driver/public-config'
 */
 publicConfigForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -212,7 +359,7 @@ publicConfigForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'>
 
 /**
 * @see \App\Http\Controllers\AppSettingsController::publicConfig
-* @see app/Http/Controllers/AppSettingsController.php:30
+* @see app/Http/Controllers/AppSettingsController.php:54
 * @route '/api/driver/public-config'
 */
 publicConfigForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -227,6 +374,6 @@ publicConfigForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'
 
 publicConfig.form = publicConfigForm
 
-const AppSettingsController = { developer, updateDeveloper, publicConfig }
+const AppSettingsController = { developer, updateDeveloper, mobileTheme, updateMobileTheme, publicConfig }
 
 export default AppSettingsController
