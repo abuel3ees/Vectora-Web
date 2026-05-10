@@ -412,14 +412,15 @@ const SCENES: Scene[] = [
 ];
 const TABS = SCENES.map(s => ({ key: s.key, label: s.title }));
 
-export default function QAOAVisualization() {
+export default function QAOAVisualization({ forcedTab }: { forcedTab?: string } = {}) {
     const [tab, setTab] = useState('raw');
     const [playing, setPlaying] = useState(true);
-    const tidx = TABS.findIndex((t) => t.key === tab);
+    const activeTab = forcedTab ?? tab;
+    const tidx = TABS.findIndex((t) => t.key === activeTab);
 
     // Autoplay: advance to next tab every 4.5 seconds
     useEffect(() => {
-        if (!playing) {
+        if (!playing || forcedTab) {
 return;
 }
 
@@ -429,7 +430,7 @@ return;
         }, 6500);
 
         return () => clearTimeout(timer);
-    }, [playing, tidx]);
+    }, [playing, tidx, forcedTab]);
 
     const svg = useMemo(() => {
         const els: JSX.Element[] = [];
@@ -450,7 +451,7 @@ els.push(
 }
 }
 
-        if (tab === 'raw') {
+        if (activeTab === 'raw') {
             ALL.forEach((n, i) =>
                 els.push(
                     <Dot key={n.id} x={n.x} y={n.y} r={4.5} fill="#475569" stroke="#64748b" label={n.id} delay={40 + i * 22} />
@@ -458,7 +459,7 @@ els.push(
             );
         }
 
-        if (tab === 'clust') {
+        if (activeTab === 'clust') {
             LEAVES.forEach((l, i) => {
                 const c = COLORS[i % COLORS.length];
                 const base = 80 + i * 55;
@@ -489,7 +490,7 @@ els.push(<Dot key={nid} x={n.x} y={n.y} r={5} fill={c} stroke="#fff" label={nid}
             });
         }
 
-        if (tab === 'leaf') {
+        if (activeTab === 'leaf') {
             LEAVES.forEach((l, i) => {
                 const c = COLORS[i % COLORS.length];
                 const base = 120 + i * 35;
@@ -522,7 +523,7 @@ els.push(<Edge key={`e${l.id}${j}`} n1={l.n[j]} n2={l.n[j + 1]} color={c} w={2.2
             });
         }
 
-        if (tab === 'super') {
+        if (activeTab === 'super') {
             D0_CLUSTERS.forEach((cl, ci) => {
                 const mc = COLORS[ci];
                 const allN = clusterAllNodes(cl.id);
@@ -598,7 +599,7 @@ els.push(
             });
         }
 
-        if (tab === 'sn_qaoa') {
+        if (activeTab === 'sn_qaoa') {
             D0_CLUSTERS.forEach((cl, ci) => {
                 const mc = COLORS[ci];
                 const allN = clusterAllNodes(cl.id);
@@ -707,7 +708,7 @@ return;
             });
         }
 
-        if (tab === 'alloc') {
+        if (activeTab === 'alloc') {
             const vcolors = ['#ef4444', '#22c55e', '#3b82f6'];
             FINAL_ALLOC.forEach((va, vi) => {
                 const vc = vcolors[vi];
@@ -765,7 +766,7 @@ els.push(<Dot key={`an${nid}`} x={n.x} y={n.y} r={3.5} fill={vc} stroke="#fff" s
             });
         }
 
-        if (tab === 'final') {
+        if (activeTab === 'final') {
             const vcolors = ['#ef4444', '#f59e0b', '#22c55e', '#3b82f6', '#a855f7', '#06b6d4', '#ec4899'];
             let ri = 0;
             FINAL_ALLOC.forEach((va) => {
@@ -803,7 +804,7 @@ els.push(<Edge key={`fe${ri}_${j}`} n1={route[j]} n2={route[j + 1]} color={rc} w
         els.push(<DepotNode key="depot" />);
 
         return els;
-    }, [tab]);
+    }, [activeTab]);
 
     const scene = SCENES[tidx] ?? SCENES[0];
 
@@ -895,7 +896,7 @@ els.push(<Edge key={`fe${ri}_${j}`} n1={route[j]} n2={route[j + 1]} color={rc} w
                     </div>
 
                     {/* Body */}
-                    <div key={`col-${tab}`} className="flex flex-col gap-7">
+                    <div key={`col-${activeTab}`} className="flex flex-col gap-7">
 
                         {/* Numeral + act */}
                         <div className="flex items-baseline gap-5" style={{ animation: 'qv-numeral-in 700ms cubic-bezier(0.76,0,0.24,1) 80ms both' }}>
@@ -976,7 +977,7 @@ els.push(<Edge key={`fe${ri}_${j}`} n1={route[j]} n2={route[j + 1]} color={rc} w
 
                     {/* SVG plate — no border, inset into the page */}
                     <div
-                        key={`svg-${tab}`}
+                        key={`svg-${activeTab}`}
                         className="qv-film relative flex-1 min-h-0 overflow-hidden rounded-md"
                         style={{
                             animation: 'qv-plate-in 900ms cubic-bezier(0.76,0,0.24,1) both',
@@ -992,9 +993,9 @@ els.push(<Edge key={`fe${ri}_${j}`} n1={route[j]} n2={route[j + 1]} color={rc} w
                         <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%)' }} />
 
                         {/* Autoplay bar */}
-                        {playing && (
+                        {playing && !forcedTab && (
                             <div
-                                key={`bar-${tab}`}
+                                key={`bar-${activeTab}`}
                                 className="pointer-events-none absolute bottom-0 left-0 right-0 h-0.5 origin-left bg-primary"
                                 style={{ animation: 'qv-bar 7500ms linear both', boxShadow: '0 0 14px oklch(0.72 0.18 35 / 0.7)' }}
                             />
@@ -1002,7 +1003,7 @@ els.push(<Edge key={`fe${ri}_${j}`} n1={route[j]} n2={route[j + 1]} color={rc} w
                     </div>
 
                     {/* Legend + timeline below plate */}
-                    <div className="flex items-center justify-between gap-8 pt-5">
+                    <div className={`flex items-center justify-between gap-8 pt-5 ${forcedTab ? 'invisible pointer-events-none' : ''}`}>
                         <div className="flex items-center gap-5 text-[9px] uppercase tracking-[0.4em] text-muted-foreground/55 font-display">
                             <span className="flex items-center gap-2">
                                 <svg width="10" height="10"><circle cx="5" cy="5" r="3.2" fill="transparent" stroke="#facc15" strokeWidth="1.6" /></svg>
@@ -1048,7 +1049,7 @@ els.push(<Edge key={`fe${ri}_${j}`} n1={route[j]} n2={route[j + 1]} color={rc} w
                     </div>
 
                     {/* Act timeline */}
-                    <div className="mt-5 grid grid-cols-7 gap-2">
+                    <div className={`mt-5 grid grid-cols-7 gap-2 ${forcedTab ? 'invisible pointer-events-none' : ''}`}>
                         {SCENES.map((s, idx) => {
                             const active = idx === tidx;
                             const past = idx < tidx;

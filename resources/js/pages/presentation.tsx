@@ -1,8 +1,9 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Brain, ChevronRight,
-  Cpu, Globe2, Layers, Network,
-  Smartphone, Zap, Server, Atom,
+  Brain, Camera, CheckCircle2, ChevronRight,
+  Cpu, Globe2, Layers, MapPin, MessageSquare,
+  Navigation, Network, Package, PenLine, Send,
+  Smartphone, Wifi, Zap, Server, Atom,
 } from 'lucide-react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { MapRef } from 'react-map-gl/mapbox'
@@ -13,7 +14,7 @@ import QAOAVisualization from '@/components/qaoa-visualization'
 /* ─────────────────────────────────────────── types */
 interface Props { mapboxToken?: string | null }
 
-const TOTAL = 20
+const TOTAL = 30
 
 /* ─────────────────────────────────────────── seeded rng */
 function seeded(s: number) {
@@ -244,13 +245,23 @@ export default function Presentation({ mapboxToken }: Props) {
           {cur === 10 && <SSection idx={2} />}
           {cur === 11 && <S08Globe token={token} />}
           {cur === 12 && <S09Decomposition />}
-          {cur === 13 && <S10Execution />}
-          {cur === 14 && <S11Architecture />}
-          {cur === 15 && <SSection idx={3} />}
-          {cur === 16 && <S12Maps token={token} />}
-          {cur === 17 && <S13Benchmark />}
-          {cur === 18 && <S14Hardware />}
-          {cur === 19 && <S15FutureWork />}
+          {cur === 13 && <SQAOAScene scene="raw" />}
+          {cur === 14 && <SQAOAScene scene="clust" />}
+          {cur === 15 && <SQAOAScene scene="leaf" />}
+          {cur === 16 && <SQAOAScene scene="super" />}
+          {cur === 17 && <SQAOAScene scene="sn_qaoa" />}
+          {cur === 18 && <SQAOAScene scene="alloc" />}
+          {cur === 19 && <SQAOAScene scene="final" />}
+          {cur === 20 && <S11Architecture />}
+          {cur === 21 && <SDispatchWorkflow />}
+          {cur === 22 && <SDriverApp />}
+          {cur === 23 && <SDeliveryProof />}
+          {cur === 24 && <SSection idx={3} />}
+          {cur === 25 && <S12Maps token={token} />}
+          {cur === 26 && <S13Benchmark />}
+          {cur === 27 && <S14Hardware />}
+          {cur === 28 && <S15FutureWork />}
+          {cur === 29 && <S16ThankYou />}
         </motion.div>
       </AnimatePresence>
       <Hud cur={cur} go={go} />
@@ -263,16 +274,20 @@ const SLIDE_LABELS = [
   'Pre-Show', 'Title',
   '— The Problem —', 'Combinatorial Explosion', 'Classical Flaw',
   '— The Approach —', 'Quantum Tunneling', 'QAOA Mechanics', 'QUBO → Ising', 'NISQ Bottleneck',
-  '— The System —', 'The Dataset', 'K-Means Decomposition', 'Quantum Execution', 'System Architecture',
+  '— The System —', 'The Dataset', 'K-Means Decomposition',
+  'QAOA · I · The Landscape', 'QAOA · II · The Partition', 'QAOA · III · Quantum Solve',
+  'QAOA · IV · Aggregation', 'QAOA · V · Orchestration', 'QAOA · VI · Allotment', 'QAOA · VII · Finale',
+  'System Architecture', 'Dispatch Workflow', 'Driver Mobile App', 'Proof of Delivery',
   '— The Results —', '200-Node Visual Proof', 'Benchmark Results', 'Hardware Validation', 'Future Work',
+  'Thank You',
 ]
 
 const SECTIONS = [
   { label: '',            start: 0,  end: 1  },
   { label: 'The Problem', start: 2,  end: 4  },
-  { label: 'The Approach', start: 5, end: 9  },
-  { label: 'The System',  start: 10, end: 14 },
-  { label: 'The Results', start: 15, end: 19 },
+  { label: 'The Approach', start: 5,  end: 9  },
+  { label: 'The System',  start: 10, end: 23 },
+  { label: 'The Results', start: 24, end: 29 },
 ]
 
 function getSectionFor(n: number) {
@@ -1136,12 +1151,242 @@ function S09Decomposition() {
   )
 }
 
-/* ─────────────────────────────────────────── slide 10 — execution */
-function S10Execution() {
-  return <div className="absolute inset-0"><QAOAVisualization /></div>
+/* ─────────────────────────────────────────── slides 13-19 — QAOA algorithm acts */
+function SQAOAScene({ scene }: { scene: string }) {
+  return <div className="absolute inset-0"><QAOAVisualization forcedTab={scene} /></div>
 }
 
-/* ─────────────────────────────────────────── slide 11 — architecture */
+/* ─────────────────────────────────────────── slide 21 — dispatch workflow */
+function SDispatchWorkflow() {
+  const steps = [
+    { n: '01', icon: <Atom size={20} />, label: 'Quantum Solve', sub: 'QAOA decomposes and optimises the full instance end-to-end', c: 'var(--chart-3)' },
+    { n: '02', icon: <Globe2 size={20} />, label: 'Review Routes', sub: 'Dispatcher inspects the Φ-optimised plan on the live map', c: 'var(--primary)' },
+    { n: '03', icon: <Send size={20} />, label: 'Dispatch', sub: 'One click — one DriverAssignment row per vehicle created', c: 'var(--chart-2)' },
+    { n: '04', icon: <Smartphone size={20} />, label: 'Driver Receives', sub: 'Flutter app polls; route appears within seconds of dispatch', c: 'var(--chart-4)' },
+  ]
+
+  return (
+    <Center>
+      <Ey>End-to-End Dispatch</Ey>
+      <H size="lg">One Click. Seven Assignments.</H>
+      <Hr />
+      <div className="mt-6 flex items-stretch gap-0 w-full max-w-4xl">
+        {steps.map(({ n, icon, label, sub, c }, i) => (
+          <React.Fragment key={n}>
+            <motion.div
+              className="flex-1"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: i * 0.1 }}
+            >
+              <Card className="px-5 py-6 h-full text-center" style={{ borderColor: `color-mix(in oklch, ${c} 25%, var(--border))` }}>
+                <div className="text-[10px] font-mono text-muted-foreground mb-3">{n}</div>
+                <div style={{ color: c }} className="flex justify-center mb-3">{icon}</div>
+                <div className="text-sm font-medium text-foreground mb-2">{label}</div>
+                <div className="text-[11px] text-muted-foreground leading-relaxed">{sub}</div>
+              </Card>
+            </motion.div>
+            {i < steps.length - 1 && (
+              <div className="flex items-center px-1 shrink-0">
+                <ChevronRight size={16} className="text-border" />
+              </div>
+            )}
+          </React.Fragment>
+        ))}
+      </div>
+      <div className="mt-6 text-xs text-muted-foreground font-mono max-w-2xl text-center leading-relaxed">
+        <code style={{ color: 'var(--primary)' }}>POST /optimize/dispatch</code>
+        {' '}creates one{' '}
+        <code style={{ color: 'var(--chart-2)' }}>DriverAssignment</code>
+        {' '}row per vehicle — instantly accessible via Sanctum token on the Flutter app.
+      </div>
+    </Center>
+  )
+}
+
+/* ─────────────────────────────────────────── slide 22 — driver mobile app */
+function DriverPhoneMockup() {
+  const accent = 'oklch(0.72 0.18 35)'
+
+  return (
+    <div
+      className="relative mx-auto"
+      style={{
+        width: 228,
+        height: 456,
+        borderRadius: 36,
+        background: 'oklch(0.10 0.025 250)',
+        border: '2px solid oklch(0.22 0.025 250)',
+        boxShadow: `0 0 0 1px oklch(0.30 0.03 250 / 0.4), 0 24px 72px rgba(0,0,0,0.55), 0 0 60px ${accent}28`,
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      {/* status bar */}
+      <div style={{ height: 30, background: 'oklch(0.08 0.02 250)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', flexShrink: 0 }}>
+        <span style={{ fontSize: 9, color: 'oklch(0.55 0 0)', fontFamily: 'JetBrains Mono, monospace' }}>9:41</span>
+        <div style={{ width: 52, height: 7, borderRadius: 8, background: 'oklch(0.13 0.02 250)' }} />
+        <div style={{ display: 'flex', gap: 3, alignItems: 'flex-end' }}>
+          {[5, 7, 9].map((h, i) => <div key={i} style={{ width: 3, height: h, background: 'oklch(0.55 0 0)', borderRadius: 1 }} />)}
+        </div>
+      </div>
+
+      {/* app bar */}
+      <div style={{ padding: '10px 14px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid oklch(0.16 0.025 250)', flexShrink: 0 }}>
+        <span style={{ fontSize: 14, fontWeight: 600, color: 'oklch(0.90 0 0)', fontFamily: 'sans-serif' }}>My Routes</span>
+        <div style={{ width: 26, height: 26, borderRadius: 13, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ fontSize: 10, color: '#fff', fontWeight: 700 }}>A</span>
+        </div>
+      </div>
+
+      {/* active chip */}
+      <div style={{ padding: '8px 14px 4px', flexShrink: 0 }}>
+        <span style={{ fontSize: 8, padding: '2px 8px', borderRadius: 4, background: `${accent}22`, color: accent, border: `1px solid ${accent}44`, fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+          Active · 1 route
+        </span>
+      </div>
+
+      {/* route card */}
+      <div style={{ margin: '4px 10px', padding: '10px', background: 'oklch(0.14 0.025 250)', borderRadius: 12, border: `1px solid ${accent}33`, flexShrink: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'oklch(0.88 0 0)', fontFamily: 'sans-serif' }}>Route #7</span>
+          <span style={{ fontSize: 8, color: accent, fontFamily: 'monospace' }}>3 / 8 done</span>
+        </div>
+        <div style={{ fontSize: 9, color: 'oklch(0.50 0 0)', marginBottom: 8, fontFamily: 'sans-serif' }}>Artur Nogueira · 24.3 km</div>
+        <div style={{ display: 'flex', gap: 3 }}>
+          {Array.from({ length: 8 }, (_, i) => (
+            <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: i < 3 ? accent : 'oklch(0.20 0.025 250)' }} />
+          ))}
+        </div>
+      </div>
+
+      {/* map area */}
+      <div style={{ flex: 1, margin: '6px 10px', borderRadius: 10, overflow: 'hidden', background: 'oklch(0.12 0.035 230)', position: 'relative' }}>
+        <svg width="100%" height="100%" viewBox="0 0 208 118" preserveAspectRatio="xMidYMid slice">
+          {[20, 40, 60, 80, 100].map(y => <line key={`h${y}`} x1="0" y1={y} x2="208" y2={y} stroke="oklch(0.17 0.035 230)" strokeWidth="0.5" />)}
+          {[30, 60, 90, 120, 150, 180].map(x => <line key={`v${x}`} x1={x} y1="0" x2={x} y2="118" stroke="oklch(0.17 0.035 230)" strokeWidth="0.5" />)}
+          <polyline points="20,95 50,70 80,82" fill="none" stroke={`${accent}55`} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <polyline points="80,82 105,52 130,65 155,38 175,55 193,42" fill="none" stroke={accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6 3" />
+          {([[20, 95], [50, 70], [80, 82]] as [number, number][]).map(([cx, cy], i) => (
+            <circle key={`c${i}`} cx={cx} cy={cy} r={3.5} fill={`${accent}80`} stroke={accent} strokeWidth="1" />
+          ))}
+          <circle cx="105" cy="52" r="6.5" fill={accent} stroke="#fff" strokeWidth="1.5" opacity="0.95" />
+          <text x="105" y="53" textAnchor="middle" dominantBaseline="middle" fontSize="6" fill="#fff" fontWeight="800">4</text>
+          {([[130, 65], [155, 38], [175, 55], [193, 42]] as [number, number][]).map(([cx, cy], i) => (
+            <circle key={`r${i}`} cx={cx} cy={cy} r={3} fill="oklch(0.22 0.03 250)" stroke="oklch(0.38 0 0)" strokeWidth="0.8" />
+          ))}
+          <circle cx="20" cy="95" r="5" fill="oklch(0.09 0.02 250)" stroke="#facc15" strokeWidth="1.5" />
+          <text x="20" y="96" textAnchor="middle" dominantBaseline="middle" fontSize="5" fill="#facc15" fontWeight="800">D</text>
+          <circle cx="80" cy="82" r="9" fill={`${accent}18`} stroke={accent} strokeWidth="0.8" strokeDasharray="3 2" />
+        </svg>
+      </div>
+
+      {/* navigate button */}
+      <div style={{ padding: '6px 10px', flexShrink: 0 }}>
+        <div style={{ background: accent, borderRadius: 10, padding: '9px', textAlign: 'center', fontSize: 10, fontWeight: 700, color: '#fff', fontFamily: 'sans-serif' }}>
+          Navigate to Stop 4
+        </div>
+      </div>
+
+      {/* bottom nav */}
+      <div style={{ height: 42, borderTop: '1px solid oklch(0.16 0.025 250)', display: 'flex', alignItems: 'center', justifyContent: 'space-around', paddingBottom: 6, flexShrink: 0 }}>
+        {[['⊙', true], ['☰', false], ['◉', false], ['▣', false]].map(([icon, active], i) => (
+          <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+            <span style={{ fontSize: 13, color: active ? accent : 'oklch(0.38 0 0)' }}>{icon as string}</span>
+            <div style={{ width: 3, height: 3, borderRadius: 1.5, background: active ? accent : 'transparent' }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function SDriverApp() {
+  return (
+    <Split
+      L={
+        <div>
+          <Ey>Flutter · Sanctum Token Auth</Ey>
+          <H size="lg">The route, in the driver's hand.</H>
+          <Hr />
+          <P>
+            Assignments flow from the dispatcher to the Flutter app the moment dispatch is clicked.
+            The driver sees their ordered stops, navigates in sequence, and logs every delivery in the field.
+          </P>
+          <div className="mt-8 space-y-4">
+            {[
+              { icon: <Navigation size={15} />, t: 'Live navigation', d: 'OSMnx stop order · GPS-locked turn-by-turn' },
+              { icon: <Wifi size={15} />, t: 'GPS heartbeat', d: 'Location logged every 30 s via /api/driver/location' },
+              { icon: <Package size={15} />, t: 'Stop lifecycle', d: 'Pending → In Transit → Delivered' },
+              { icon: <MessageSquare size={15} />, t: 'Dispatcher messages', d: 'Real-time in-app channel per assignment' },
+            ].map(({ icon, t, d }) => (
+              <div key={t} className="flex items-start gap-3">
+                <span style={{ color: 'var(--primary)', marginTop: 2, flexShrink: 0 }}>{icon}</span>
+                <div>
+                  <div className="text-sm font-medium text-foreground">{t}</div>
+                  <div className="text-[11px] text-muted-foreground">{d}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      }
+      R={
+        <div className="flex justify-center">
+          <DriverPhoneMockup />
+        </div>
+      }
+    />
+  )
+}
+
+/* ─────────────────────────────────────────── slide 23 — proof of delivery */
+function SDeliveryProof() {
+  const steps = [
+    { n: '01', icon: <MapPin size={20} />, label: 'Arrive at Stop', sub: 'GPS locks within 50 m — stop unlocks on the driver\'s screen', c: 'var(--chart-3)' },
+    { n: '02', icon: <Camera size={20} />, label: 'Capture Photo', sub: 'Required photo of the delivered package stored to /storage/', c: 'var(--primary)' },
+    { n: '03', icon: <PenLine size={20} />, label: 'Collect Signature', sub: 'Customer signs directly on the driver\'s device', c: 'var(--chart-4)' },
+    { n: '04', icon: <CheckCircle2 size={20} />, label: 'Mark Complete', sub: 'Stop closes and syncs to the dispatcher view in real time', c: 'var(--chart-2)' },
+  ]
+
+  return (
+    <Center>
+      <Ey>Proof of Delivery</Ey>
+      <H size="lg">Every delivery, verified and logged.</H>
+      <Hr />
+      <div className="mt-6 grid grid-cols-4 gap-4 w-full max-w-4xl">
+        {steps.map(({ n, icon, label, sub, c }, i) => (
+          <motion.div
+            key={n}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: i * 0.1 }}
+          >
+            <Card className="px-4 py-6 text-center h-full" style={{ borderColor: `color-mix(in oklch, ${c} 25%, var(--border))` }}>
+              <div className="text-[10px] font-mono text-muted-foreground mb-3">{n}</div>
+              <div style={{ color: c }} className="flex justify-center mb-3">{icon}</div>
+              <div className="text-sm font-medium text-foreground mb-2">{label}</div>
+              <div className="text-[11px] text-muted-foreground leading-relaxed">{sub}</div>
+            </Card>
+          </motion.div>
+        ))}
+      </div>
+      <div className="mt-6 flex items-center gap-3 text-xs text-muted-foreground max-w-3xl">
+        <Server size={14} className="shrink-0" style={{ color: 'var(--primary)' }} />
+        <span>
+          Photos and signatures are stored at{' '}
+          <code className="font-mono text-foreground">storage/app/public/delivery-photos/</code>
+          {' '}and served via <code className="font-mono text-foreground">/storage/</code>.
+          Dispatchers review all proofs in real time at{' '}
+          <code className="font-mono text-foreground">/delivery-proofs</code>.
+        </span>
+      </div>
+    </Center>
+  )
+}
+
+/* ─────────────────────────────────────────── slide 20 — architecture */
 const STACK = [
   {
     icon: <Atom size={22} />,
@@ -1736,5 +1981,61 @@ function S15FutureWork() {
         </div>
       </div>
     </Center>
+  )
+}
+
+/* ─────────────────────────────────────────── slide 29 — thank you */
+function S16ThankYou() {
+  return (
+    <div className="relative flex items-center justify-center w-full h-full overflow-hidden">
+      {/* concentric rings */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        {[320, 520, 740, 980].map((r, i) => (
+          <div
+            key={i}
+            className="absolute rounded-full border border-border"
+            style={{ width: r, height: r, opacity: 0.18 - i * 0.035 }}
+          />
+        ))}
+        {/* slow radar sweep */}
+        <div className="absolute w-[700px] h-[700px] rounded-full overflow-hidden opacity-[0.07]">
+          <div
+            className="absolute inset-0 anim-radar"
+            style={{ background: 'conic-gradient(from 0deg, transparent 0deg, oklch(0.72 0.18 35 / 0.9) 50deg, transparent 50deg)' }}
+          />
+        </div>
+      </div>
+
+      <div className="relative text-center max-w-2xl px-10">
+        <motion.div
+          initial={{ opacity: 0, y: 28 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <div className="font-mono text-[10px] uppercase tracking-[0.35em] mb-8" style={{ color: 'var(--primary)', opacity: 0.8 }}>
+            Vectora · VRPFR · 2026
+          </div>
+
+          <h1
+            className="font-serif italic font-light leading-[1.04] tracking-[-0.04em] text-foreground mb-8"
+            style={{ fontSize: 'clamp(3.5rem, 9vw, 7rem)' }}
+          >
+            Thank you.
+          </h1>
+
+          <div className="h-px w-20 mx-auto bg-border mb-8" />
+
+          <p className="text-sm leading-relaxed text-muted-foreground mb-10 max-w-[44ch] mx-auto">
+            We kindly ask non-committee members to step outside for the examination. Thank you for attending.
+          </p>
+
+          <div className="font-sans text-muted-foreground text-sm">
+            Leen Almousa &nbsp;·&nbsp; Abdulrahman Al-Essa &nbsp;·&nbsp; Malak Alshawish
+          </div>
+        </motion.div>
+      </div>
+
+      <div className="absolute bottom-0 left-0 right-0 h-px bg-border opacity-30" />
+    </div>
   )
 }
