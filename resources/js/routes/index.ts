@@ -380,8 +380,7 @@ dashboardForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> =
 dashboard.form = dashboardForm
 
 /**
-* @see \Inertia\Controller::__invoke
-* @see vendor/inertiajs/inertia-laravel/src/Controller.php:13
+* @see routes/web.php:41
 * @route '/presentation'
 */
 export const presentation = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -395,8 +394,7 @@ presentation.definition = {
 } satisfies RouteDefinition<["get","head"]>
 
 /**
-* @see \Inertia\Controller::__invoke
-* @see vendor/inertiajs/inertia-laravel/src/Controller.php:13
+* @see routes/web.php:41
 * @route '/presentation'
 */
 presentation.url = (options?: RouteQueryOptions) => {
@@ -404,8 +402,7 @@ presentation.url = (options?: RouteQueryOptions) => {
 }
 
 /**
-* @see \Inertia\Controller::__invoke
-* @see vendor/inertiajs/inertia-laravel/src/Controller.php:13
+* @see routes/web.php:41
 * @route '/presentation'
 */
 presentation.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -414,8 +411,7 @@ presentation.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 
 /**
-* @see \Inertia\Controller::__invoke
-* @see vendor/inertiajs/inertia-laravel/src/Controller.php:13
+* @see routes/web.php:41
 * @route '/presentation'
 */
 presentation.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -424,8 +420,7 @@ presentation.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 })
 
 /**
-* @see \Inertia\Controller::__invoke
-* @see vendor/inertiajs/inertia-laravel/src/Controller.php:13
+* @see routes/web.php:41
 * @route '/presentation'
 */
 const presentationForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -434,8 +429,7 @@ const presentationForm = (options?: RouteQueryOptions): RouteFormDefinition<'get
 })
 
 /**
-* @see \Inertia\Controller::__invoke
-* @see vendor/inertiajs/inertia-laravel/src/Controller.php:13
+* @see routes/web.php:41
 * @route '/presentation'
 */
 presentationForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -444,8 +438,7 @@ presentationForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'>
 })
 
 /**
-* @see \Inertia\Controller::__invoke
-* @see vendor/inertiajs/inertia-laravel/src/Controller.php:13
+* @see routes/web.php:41
 * @route '/presentation'
 */
 presentationForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({

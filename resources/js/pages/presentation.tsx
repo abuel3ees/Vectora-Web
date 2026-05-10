@@ -1,2333 +1,1740 @@
-import { Head } from '@inertiajs/react';
-import { useEffect, useRef, useCallback } from 'react';
-import * as topojson from 'topojson-client';
-
-// ─── types ───────────────────────────────────────────────
-type V3 = [number, number, number];
-type P3 = [number, number, number];
-type RouteStyle = { c: string; g: string; w: number };
-type ArcPt = { t: number; spd: number; done: boolean };
-type SlideState = {
-    t: number;
-    s: number;
-    n: number;
-    r: [number, number, number, number, number];
-    d: number;
-    z: { sc: number; la: number; lo: number } | null;
-};
-
-// ─── data ────────────────────────────────────────────────
-const CITIES: [string, number, number][] = [
-    ['Rio Claro', -22.41, -47.56],
-    ['Artur Nogueira', -22.57, -47.17],
-    ['Campinas', -22.91, -47.06],
-    ['São Paulo', -23.55, -46.63],
-    ['Ribeirão Preto', -21.17, -47.81],
-    ['Belo Horizonte', -19.92, -43.94],
-    ['New York', 40.71, -74.01],
-    ['Rome', 41.9, 12.5],
-    ['London', 51.51, -0.13],
-    ['Amman', 31.95, 35.93],
-    ['Dubai', 25.2, 55.27],
-    ['IBM Cloud', 41.14, -73.87],
-    ['Marrakesh', 31.63, -7.99],
-    ['Tokyo', 35.68, 139.69],
-    ['Singapore', 1.35, 103.82],
-    ['Sydney', -33.87, 151.21],
-    ['Berlin', 52.52, 13.4],
-    ['Toronto', 43.65, -79.38],
-    ['Cairo', 30.04, 31.24],
-    ['Nairobi', -1.29, 36.82],
-];
-const ROUTES = [
-    { nodes: [0, 1, 2, 3, 4, 0] },
-    { nodes: [0, 6, 17, 11, 16, 7, 0] },
-    { nodes: [0, 18, 19, 10, 14, 15, 0] },
-    { nodes: [0, 12, 8, 9, 10, 0] },
-    { nodes: [0, 5, 3, 4, 1, 0] },
-];
-const RS: RouteStyle[] = [
-    { c: '#7dd3fc', g: 'rgba(125,211,252,', w: 1.6 },
-    { c: '#f472b6', g: 'rgba(244,114,182,', w: 1.4 },
-    { c: '#facc15', g: 'rgba(250,204,21,', w: 1.5 },
-    { c: '#34d399', g: 'rgba(52,211,153,', w: 1.2 },
-    { c: '#a78bfa', g: 'rgba(167,139,250,', w: 1.4 },
-];
-const SS: SlideState[] = [
-    { t: 0.45, s: 0.35, n: 0, r: [0, 0, 0, 0, 0], d: 1, z: null },
-    { t: 0.38, s: 0.3, n: 1, r: [0, 0, 0, 0, 0], d: 1, z: null },
-    { t: 0.1, s: 0.8, n: 1, r: [0, 0, 0, 0, 0], d: 1, z: null },
-    { t: 0.3, s: 0.55, n: 1, r: [0, 0, 0, 0, 0], d: 1, z: null },
-    { t: 0.55, s: 0.9, n: 0.5, r: [0, 0, 0, 0, 0], d: 1, z: null },
-    { t: 0.75, s: 1.4, n: 0.35, r: [0, 0, 0, 0, 0], d: 1, z: null },
-    { t: 0.68, s: 1.6, n: 0.25, r: [0, 0, 0, 0, 0], d: 1, z: null },
-    { t: 0.42, s: 0.5, n: 1, r: [0, 0, 0, 0, 0], d: 1, z: null },
-    { t: 0.45, s: 0.18, n: 0.2, r: [0, 0, 0, 0, 0], d: 0.28, z: null },
-    { t: 0.35, s: 0.4, n: 1, r: [0, 0, 0, 0, 0], d: 1, z: null },
-    {
-        t: 0.42,
-        s: 0.28,
-        n: 1,
-        r: [1, 0, 0, 0, 0],
-        d: 1,
-        z: { sc: 2.15, la: -22.5, lo: -47.3 },
-    },
-    {
-        t: 0.32,
-        s: 0.22,
-        n: 1,
-        r: [1, 1, 0, 0, 0],
-        d: 1,
-        z: { sc: 1.8, la: 36, lo: -35 },
-    },
-    {
-        t: 0.38,
-        s: 0.22,
-        n: 1,
-        r: [1, 1, 1, 0, 0],
-        d: 1,
-        z: { sc: 1.9, la: 12, lo: 45 },
-    },
-    { t: 0.45, s: 0.38, n: 1, r: [1, 1, 1, 1, 1], d: 1, z: null },
-    { t: 0.45, s: 0.18, n: 0.15, r: [1, 1, 1, 1, 1], d: 0.22, z: null },
-    { t: 0.45, s: 0.32, n: 1, r: [1, 1, 1, 1, 1], d: 1, z: null },
-    { t: 0.5, s: 0.28, n: 1, r: [1, 1, 1, 1, 1], d: 1, z: null },
-    { t: 0.4, s: 0.2, n: 1, r: [1, 1, 1, 1, 1], d: 1, z: null },
-];
-
-const SLIDE_LABELS = [
-    '01 Title',
-    '02 Logistics Pain',
-    '03 Explosion',
-    '04 Objective',
-    '05 Quantum Primer',
-    '06 QUBO Map',
-    '07 QAOA Engine',
-    '08 Design Choices',
-    '09 Circuit Reactor',
-    '10 Recursive Pipeline',
-    '11 Brazil Benchmark',
-    '12 Leaf Solver',
-    '13 Warm Start',
-    '14 System Topology',
-    '15 Validation',
-    '16 Results',
-    '17 IBM Quantum',
-    '18 Future Work',
-];
-
-const ORBIT_RINGS = [
-    { inc: 28, r: 1.12, a: 0.18, phase: 0 },
-    { inc: -18, r: 1.2, a: 0.1, phase: 1.1 },
-];
-
-export default function Presentation() {
-    const bgRef = useRef<HTMLCanvasElement>(null);
-    const gcRef = useRef<HTMLCanvasElement>(null);
-    const echRef = useRef<HTMLCanvasElement>(null);
-    const curRef = useRef(0);
-    const rafRef = useRef(0);
-    const stateRef = useRef({ initialized: false });
-
-    // Expose goTo so event listeners can call it
-    const goToRef = useRef<(i: number) => void>(() => {});
-
-    useEffect(() => {
-        const bgC = bgRef.current!;
-        const gc = gcRef.current!;
-
-        if (!bgC || !gc) {
-            return;
-        }
-
-        const bgX = bgC.getContext('2d')!;
-        const gx = gc.getContext('2d')!;
-
-        let W = 0,
-            H = 0;
-        let stars: {
-            x: number;
-            y: number;
-            r: number;
-            a: number;
-            tw: number;
-        }[] = [];
-
-        function resize() {
-            W = bgC.width = gc.width = window.innerWidth;
-            H = bgC.height = gc.height = window.innerHeight;
-            stars = Array.from({ length: 320 }, () => ({
-                x: Math.random() * W,
-                y: Math.random() * H,
-                r: Math.random() * 0.9 + 0.15,
-                a: Math.random() * 0.45 + 0.06,
-                tw: Math.random() * Math.PI * 2,
-            }));
-        }
-        window.addEventListener('resize', resize);
-        resize();
-
-        // globe interpolated state
-        const G = {
-            t: 0.45,
-            s: 0.35,
-            n: 0,
-            r: [0, 0, 0, 0, 0] as number[],
-            d: 1,
-            zsc: 1,
-            zox: 0,
-            zoy: 0,
-        };
-        let rotAngle = 0,
-            lastTs = 0;
-
-        const particles = Array.from({ length: 60 }, () => ({
-            lat: ((Math.random() * 180 - 90) * Math.PI) / 180,
-            lon: Math.random() * Math.PI * 2,
-            r: 1.1 + Math.random() * 0.18,
-            speed: (Math.random() - 0.5) * 0.0004,
-            size: Math.random() * 1.2 + 0.3,
-            a: Math.random() * 0.35 + 0.08,
-        }));
-        const vehicles = ROUTES.map(() => ({
-            t: Math.random(),
-            spd: 0.00006 + Math.random() * 0.00003,
-        }));
-        const cityFlash = new Array(CITIES.length).fill(0);
-        const arcP: ArcPt[][] = ROUTES.map((r) =>
-            r.nodes.slice(0, -1).map(() => ({
-                t: 0,
-                spd: 0.002 + Math.random() * 0.002,
-                done: false,
-            })),
-        );
-
-        // world data
-        let landRings: number[][][] = [],
-            countryLines: number[][][] = [];
-        Promise.all([
-            fetch(
-                'https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json',
-            ).then((r) => r.json()),
-            fetch(
-                'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json',
-            ).then((r) => r.json()),
-        ])
-            .then(([l, c]) => {
-                topojson
-                    .feature(l as any, (l as any).objects.land)
-                    .features.forEach((f: any) => {
-                        const p =
-                            f.geometry.type === 'Polygon'
-                                ? [f.geometry.coordinates]
-                                : f.geometry.coordinates;
-                        (p as number[][][][]).forEach((poly: number[][][]) =>
-                            poly.forEach((ring: number[][]) =>
-                                landRings.push(ring),
-                            ),
-                        );
-                    });
-                const m = topojson.mesh(
-                    c as any,
-                    (c as any).objects.countries,
-                    (a: any, b: any) => a !== b,
-                );
-                countryLines = (m as any).coordinates;
-            })
-            .catch(() => {});
-
-        // ─── math ───
-        const toV = (la: number, lo: number): V3 => {
-            const a = (la * Math.PI) / 180,
-                b = (lo * Math.PI) / 180;
-
-            return [
-                Math.cos(a) * Math.cos(b),
-                Math.sin(a),
-                Math.cos(a) * Math.sin(b),
-            ];
-        };
-        const rotY = (v: V3, a: number): V3 => [
-            v[0] * Math.cos(a) + v[2] * Math.sin(a),
-            v[1],
-            -v[0] * Math.sin(a) + v[2] * Math.cos(a),
-        ];
-        const rotX = (v: V3, a: number): V3 => [
-            v[0],
-            v[1] * Math.cos(a) - v[2] * Math.sin(a),
-            v[1] * Math.sin(a) + v[2] * Math.cos(a),
-        ];
-        const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-        const vw = (v: V3): V3 => rotX(rotY(v, rotAngle), (G.t * Math.PI) / 2);
-        const vwFix = (v: V3): V3 => rotX(v, (G.t * Math.PI) / 2);
-
-        function pr(v: V3, R: number, cx: number, cy: number): P3 {
-            return [
-                (cx + v[0] * R - G.zox) * G.zsc + G.zox,
-                (cy - v[1] * R - G.zoy) * G.zsc + G.zoy,
-                v[2],
-            ];
-        }
-        function prRaw(v: V3, R: number, cx: number, cy: number): P3 {
-            return [cx + v[0] * R, cy - v[1] * R, v[2]];
-        }
-        function slE(a: V3, b: V3, t: number, h = 0.1): V3 {
-            const d = Math.max(
-                -1,
-                Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]),
-            );
-            const th = Math.acos(d);
-
-            if (Math.abs(th) < 1e-4) {
-                return a;
-            }
-
-            const s = Math.sin(th);
-            const v: V3 = [
-                (Math.sin((1 - t) * th) / s) * a[0] +
-                    (Math.sin(t * th) / s) * b[0],
-                (Math.sin((1 - t) * th) / s) * a[1] +
-                    (Math.sin(t * th) / s) * b[1],
-                (Math.sin((1 - t) * th) / s) * a[2] +
-                    (Math.sin(t * th) / s) * b[2],
-            ];
-            const elev = 1 + h * Math.sin(t * Math.PI);
-
-            return [v[0] * elev, v[1] * elev, v[2] * elev];
-        }
-
-        // ─── draw helpers ───
-        function polyline(pts: P3[]) {
-            if (pts.length < 2) {
-                return;
-            }
-
-            gx.beginPath();
-            gx.moveTo(pts[0][0], pts[0][1]);
-
-            for (let i = 1; i < pts.length; i++) {
-                gx.lineTo(pts[i][0], pts[i][1]);
-            }
-
-            gx.stroke();
-        }
-        function gline(pts: P3[], a: number) {
-            if (pts.length < 2) {
-                return;
-            }
-
-            gx.beginPath();
-            gx.moveTo(pts[0][0], pts[0][1]);
-
-            for (let i = 1; i < pts.length; i++) {
-                gx.lineTo(pts[i][0], pts[i][1]);
-            }
-
-            gx.strokeStyle = `rgba(50,45,85,${a})`;
-            gx.lineWidth = 0.4;
-            gx.stroke();
-        }
-        function arcSeg(pts: P3[], st: RouteStyle) {
-            if (pts.length < 2) {
-                return;
-            }
-
-            gx.beginPath();
-            gx.moveTo(pts[0][0], pts[0][1]);
-
-            for (let i = 1; i < pts.length; i++) {
-                gx.lineTo(pts[i][0], pts[i][1]);
-            }
-
-            gx.strokeStyle = st.g + '.09)';
-            gx.lineWidth = 9;
-            gx.stroke();
-            gx.strokeStyle = st.g + '.12)';
-            gx.lineWidth = 5;
-            gx.stroke();
-            gx.strokeStyle = st.c;
-            gx.lineWidth = st.w;
-            gx.shadowBlur = 6;
-            gx.shadowColor = st.g + '.55)';
-            gx.stroke();
-            gx.shadowBlur = 0;
-        }
-        function orbitSeg(pts: [number, number][], a: number) {
-            if (pts.length < 2) {
-                return;
-            }
-
-            gx.beginPath();
-            gx.moveTo(pts[0][0], pts[0][1]);
-
-            for (let i = 1; i < pts.length; i++) {
-                gx.lineTo(pts[i][0], pts[i][1]);
-            }
-
-            gx.strokeStyle = `rgba(201,169,110,${a})`;
-            gx.lineWidth = 0.7;
-            gx.stroke();
-        }
-        function drawOrbitRing(
-            ring: (typeof ORBIT_RINGS)[0],
-            R: number,
-            cx: number,
-            cy: number,
-        ) {
-            const { inc, r, a, phase } = ring;
-            const incR = (inc * Math.PI) / 180;
-            const SEGS = 120;
-            let seg: [number, number][] = [];
-
-            for (let i = 0; i <= SEGS; i++) {
-                const lon = (i / SEGS) * Math.PI * 2 + phase,
-                    x = Math.cos(lon) * r,
-                    yR = Math.sin(lon) * r;
-                const v = vwFix([x, yR * Math.sin(incR), yR * Math.cos(incR)]);
-                const p = prRaw(v, R, cx, cy);
-
-                if (p[2] > 0) {
-                    seg.push([p[0], p[1]]);
-                } else {
-                    orbitSeg(seg, a);
-                    seg = [];
-                }
-            }
-
-            orbitSeg(seg, a);
-        }
-
-        // ─── main draw ───
-        function drawBg() {
-            bgX.clearRect(0, 0, W, H);
-            const g = bgX.createRadialGradient(
-                W / 2,
-                H / 2,
-                0,
-                W / 2,
-                H / 2,
-                Math.max(W, H) * 0.65,
-            );
-            g.addColorStop(0, 'rgba(20,14,38,.0)');
-            g.addColorStop(1, 'rgba(4,3,10,.94)');
-            bgX.fillStyle = g;
-            bgX.fillRect(0, 0, W, H);
-
-            for (const s of stars) {
-                s.tw += 0.007;
-                bgX.beginPath();
-                bgX.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-                bgX.fillStyle = `rgba(215,195,155,${s.a * (0.4 + 0.6 * Math.sin(s.tw))})`;
-                bgX.fill();
-            }
-        }
-
-        function drawGlobe(ts: number) {
-            const dt = ts - lastTs;
-            lastTs = ts;
-            rotAngle += 0.00025 * dt * G.s;
-            const tgt = SS[curRef.current],
-                k = 0.028;
-            G.t = lerp(G.t, tgt.t, k);
-            G.s = lerp(G.s, tgt.s, k);
-            G.n = lerp(G.n, tgt.n, k);
-            G.d = lerp(G.d, tgt.d, k);
-
-            for (let i = 0; i < 5; i++) {
-                G.r[i] = lerp(G.r[i], tgt.r[i], k * 0.75);
-
-                if (G.r[i] < 0.04) {
-                    arcP[i].forEach((a) => {
-                        a.t = 0;
-                        a.done = false;
-                    });
-                }
-            }
-
-            // zoom interpolation
-            let targetZsc = 1,
-                targetZox = W / 2,
-                targetZoy = H / 2;
-
-            if (tgt.z) {
-                targetZsc = tgt.z.sc;
-                const zv = toV(tgt.z.la, tgt.z.lo);
-                const zr = rotX(rotY(zv, rotAngle), (G.t * Math.PI) / 2);
-                const R0 = Math.min(W, H) * 0.34;
-                targetZox = W / 2 + zr[0] * R0;
-                targetZoy = H / 2 - zr[1] * R0;
-            }
-
-            G.zsc = lerp(G.zsc, targetZsc, 0.018);
-            G.zox = lerp(G.zox, targetZox, 0.018);
-            G.zoy = lerp(G.zoy, targetZoy, 0.018);
-
-            gx.clearRect(0, 0, W, H);
-            const cx = W / 2,
-                cy = H / 2,
-                R = Math.min(W, H) * 0.34;
-            gx.globalAlpha = G.d;
-
-            // quantum rings
-            const alpha = Math.max(0, G.t - 0.4) / 0.6;
-
-            if (alpha > 0.05) {
-                for (let k2 = 0; k2 < 4; k2++) {
-                    const phase = (ts * 0.0005 + k2 * 0.25) % 1;
-                    gx.beginPath();
-                    gx.arc(
-                        cx,
-                        cy,
-                        R * (0.05 + phase * 0.6) * G.zsc,
-                        0,
-                        Math.PI * 2,
-                    );
-                    gx.strokeStyle = `rgba(201,169,110,${alpha * 0.15 * (1 - phase)})`;
-                    gx.lineWidth = 1;
-                    gx.stroke();
-                }
-            }
-
-            // orbit back
-            ORBIT_RINGS.forEach((ring) => {
-                const { inc, r, a, phase } = ring;
-                const incR = (inc * Math.PI) / 180;
-                const SEGS = 120;
-                let seg: [number, number][] = [];
-
-                for (let i = 0; i <= SEGS; i++) {
-                    const lon = (i / SEGS) * Math.PI * 2 + phase,
-                        x = Math.cos(lon) * r,
-                        yR = Math.sin(lon) * r;
-                    const v = vwFix([
-                        x,
-                        yR * Math.sin(incR),
-                        yR * Math.cos(incR),
-                    ]);
-                    const p = prRaw(v, R, cx, cy);
-
-                    if (p[2] < 0) {
-                        seg.push([p[0], p[1]]);
-                    } else {
-                        if (seg.length > 1) {
-                            orbitSeg(seg, a * 0.5);
-                        }
-
-                        seg = [];
-                    }
-                }
-
-                if (seg.length > 1) {
-                    orbitSeg(seg, a * 0.5);
-                }
-            });
-
-            // atmosphere
-            const zcx = (cx - G.zox) * G.zsc + G.zox,
-                zcy = (cy - G.zoy) * G.zsc + G.zoy,
-                zR = R * G.zsc;
-
-            for (const [r, c, al] of [
-                [1.3, 'rgba(170,130,55,', '.08)'],
-                [1.18, 'rgba(140,100,40,', '.06)'],
-                [1.07, 'rgba(100,70,25,', '.05)'],
-            ] as [number, string, string][]) {
-                const atm = gx.createRadialGradient(
-                    zcx,
-                    zcy,
-                    zR * 0.86,
-                    zcx,
-                    zcy,
-                    zR * r,
-                );
-                atm.addColorStop(0, c + al);
-                atm.addColorStop(1, 'transparent');
-                gx.beginPath();
-                gx.arc(zcx, zcy, zR * r, 0, Math.PI * 2);
-                gx.fillStyle = atm;
-                gx.fill();
-            }
-
-            // clip sphere
-            gx.save();
-            gx.beginPath();
-            gx.arc(zcx, zcy, zR, 0, Math.PI * 2);
-            gx.clip();
-
-            // ocean
-            const oc = gx.createRadialGradient(
-                zcx - zR * 0.32,
-                zcy - zR * 0.28,
-                0,
-                zcx,
-                zcy,
-                zR,
-            );
-            oc.addColorStop(0, '#14122a');
-            oc.addColorStop(0.6, '#0d0b1e');
-            oc.addColorStop(1, '#07060f');
-            gx.fillStyle = oc;
-            gx.fillRect(zcx - zR - 2, zcy - zR - 2, zR * 2 + 4, zR * 2 + 4);
-
-            // specular
-            const sp = gx.createRadialGradient(
-                zcx - zR * 0.35,
-                zcy - zR * 0.3,
-                0,
-                zcx - zR * 0.35,
-                zcy - zR * 0.3,
-                zR * 0.75,
-            );
-            sp.addColorStop(0, 'rgba(255,248,210,.06)');
-            sp.addColorStop(1, 'transparent');
-            gx.fillStyle = sp;
-            gx.fillRect(zcx - zR - 2, zcy - zR - 2, zR * 2 + 4, zR * 2 + 4);
-
-            // land
-            gx.fillStyle = '#1d1b32';
-            gx.strokeStyle = 'rgba(55,50,95,.22)';
-            gx.lineWidth = 0.28;
-
-            for (const ring of landRings) {
-                let any = false;
-                const pts = ring.map(([lo, la]) => {
-                    const v = vw(toV(la, lo));
-                    const p = pr(v, R, cx, cy);
-
-                    if (p[2] > 0) {
-                        any = true;
-                    }
-
-                    return p;
-                });
-
-                if (!any) {
-                    continue;
-                }
-
-                gx.beginPath();
-                let pen = false;
-
-                for (const p of pts) {
-                    if (p[2] > -0.06) {
-                        if (!pen) {
-                            gx.moveTo(p[0], p[1]);
-                            pen = true;
-                        } else {
-                            gx.lineTo(p[0], p[1]);
-                        }
-                    } else {
-                        pen = false;
-                    }
-                }
-
-                gx.closePath();
-                gx.fill();
-                gx.stroke();
-            }
-
-            // borders
-            gx.strokeStyle = 'rgba(95,85,148,.4)';
-            gx.lineWidth = 0.5;
-
-            for (const line of countryLines) {
-                let seg: P3[] = [];
-
-                for (const [lo, la] of line as [number, number][]) {
-                    const v = vw(toV(la, lo));
-                    const p = pr(v, R, cx, cy);
-
-                    if (p[2] > 0) {
-                        seg.push(p);
-                    } else {
-                        polyline(seg);
-                        seg = [];
-                    }
-                }
-
-                polyline(seg);
-            }
-
-            // grid
-            for (let ld = -80; ld <= 80; ld += 10) {
-                const la = (ld * Math.PI) / 180;
-                let s: P3[] = [];
-
-                for (let i = 0; i <= 160; i++) {
-                    const lo = (i / 160) * Math.PI * 2 - Math.PI;
-                    const v = vw([
-                        Math.cos(la) * Math.cos(lo),
-                        Math.sin(la),
-                        Math.cos(la) * Math.sin(lo),
-                    ]);
-                    const p = pr(v, R, cx, cy);
-
-                    if (p[2] > 0) {
-                        s.push(p);
-                    } else {
-                        gline(s, 0.1);
-                        s = [];
-                    }
-                }
-
-                gline(s, 0.1);
-            }
-
-            for (let ld = -170; ld <= 180; ld += 10) {
-                const lo = (ld * Math.PI) / 180;
-                let s: P3[] = [];
-
-                for (let i = 0; i <= 80; i++) {
-                    const la = (i / 80) * Math.PI - Math.PI / 2;
-                    const v = vw([
-                        Math.cos(la) * Math.cos(lo),
-                        Math.sin(la),
-                        Math.cos(la) * Math.sin(lo),
-                    ]);
-                    const p = pr(v, R, cx, cy);
-
-                    if (p[2] > 0) {
-                        s.push(p);
-                    } else {
-                        gline(s, 0.1);
-                        s = [];
-                    }
-                }
-
-                gline(s, 0.1);
-            }
-
-            // terminator
-            const lit = gx.createRadialGradient(
-                zcx - zR * 0.38,
-                zcy - zR * 0.3,
-                0,
-                zcx + zR * 0.18,
-                zcy + zR * 0.28,
-                zR * 1.45,
-            );
-            lit.addColorStop(0, 'rgba(255,245,190,.07)');
-            lit.addColorStop(0.45, 'transparent');
-            lit.addColorStop(1, 'rgba(0,0,20,.55)');
-            gx.fillStyle = lit;
-            gx.fillRect(zcx - zR - 2, zcy - zR - 2, zR * 2 + 4, zR * 2 + 4);
-            gx.restore();
-
-            // edge
-            gx.beginPath();
-            gx.arc(zcx, zcy, zR, 0, Math.PI * 2);
-            gx.strokeStyle = 'rgba(160,130,70,.22)';
-            gx.lineWidth = 1.2;
-            gx.stroke();
-
-            // orbit front
-            ORBIT_RINGS.forEach((ring) => drawOrbitRing(ring, R, cx, cy));
-
-            // particles
-            for (const p of particles) {
-                p.lon += p.speed;
-                const x = Math.cos(p.lat) * Math.cos(p.lon) * p.r,
-                    y = Math.sin(p.lat) * p.r,
-                    z = Math.cos(p.lat) * Math.sin(p.lon) * p.r;
-                const v = vw([x, y, z]);
-
-                if (v[2] < 0) {
-                    continue;
-                }
-
-                const s = pr(v, R, cx, cy);
-                gx.beginPath();
-                gx.arc(s[0], s[1], p.size, 0, Math.PI * 2);
-                gx.fillStyle = `rgba(201,169,110,${p.a * (0.6 + 0.4 * Math.sin(ts * 0.002 + p.lon * 10))})`;
-                gx.shadowBlur = 4;
-                gx.shadowColor = 'rgba(201,169,110,.5)';
-                gx.fill();
-                gx.shadowBlur = 0;
-            }
-
-            // routes
-            ROUTES.forEach((route, ri) => {
-                const alpha = G.r[ri];
-
-                if (alpha < 0.02) {
-                    return;
-                }
-
-                const st = RS[ri];
-                gx.globalAlpha = G.d * alpha;
-
-                for (let ei = 0; ei < route.nodes.length - 1; ei++) {
-                    const ap = arcP[ri][ei];
-
-                    if (!ap.done) {
-                        ap.t = Math.min(ap.t + ap.spd, 1);
-
-                        if (ap.t >= 1) {
-                            ap.done = true;
-                            cityFlash[route.nodes[ei + 1]] = ts;
-                        }
-                    }
-
-                    const v1 = toV(
-                        CITIES[route.nodes[ei]][1],
-                        CITIES[route.nodes[ei]][2],
-                    );
-                    const v2 = toV(
-                        CITIES[route.nodes[ei + 1]][1],
-                        CITIES[route.nodes[ei + 1]][2],
-                    );
-                    const SEGS = 100,
-                        end = Math.ceil(SEGS * ap.t);
-                    let seg: P3[] = [];
-
-                    for (let i = 0; i <= end; i++) {
-                        const v = vw(slE(v1, v2, i / SEGS, 0.1));
-                        const p = pr(v, R, cx, cy);
-
-                        if (p[2] > 0) {
-                            seg.push(p);
-                        } else {
-                            arcSeg(seg, st);
-                            seg = [];
-                        }
-                    }
-
-                    arcSeg(seg, st);
-
-                    if (ap.t < 1) {
-                        const hv = vw(
-                            slE(v1, v2, Math.floor(SEGS * ap.t) / SEGS, 0.1),
-                        );
-                        const hp = pr(hv, R, cx, cy);
-
-                        if (hp[2] > 0) {
-                            gx.beginPath();
-                            gx.arc(hp[0], hp[1], 3, 0, Math.PI * 2);
-                            gx.fillStyle = st.c;
-                            gx.shadowBlur = 12;
-                            gx.shadowColor = st.c;
-                            gx.fill();
-                            gx.shadowBlur = 0;
-                        }
-                    }
-                }
-
-                if (alpha > 0.8) {
-                    vehicles[ri].t =
-                        (vehicles[ri].t + vehicles[ri].spd * dt) % 1;
-                    const totalSegs = route.nodes.length - 1,
-                        segT = vehicles[ri].t * totalSegs;
-                    const segIdx = Math.min(Math.floor(segT), totalSegs - 1),
-                        locT = segT - segIdx;
-                    const vv1 = toV(
-                        CITIES[route.nodes[segIdx]][1],
-                        CITIES[route.nodes[segIdx]][2],
-                    );
-                    const vv2 = toV(
-                        CITIES[route.nodes[segIdx + 1]][1],
-                        CITIES[route.nodes[segIdx + 1]][2],
-                    );
-
-                    for (let trail = 5; trail >= 0; trail--) {
-                        const tt = Math.max(0, locT - trail * 0.025);
-                        const tv = vw(slE(vv1, vv2, tt, 0.1));
-                        const tp = pr(tv, R, cx, cy);
-
-                        if (tp[2] > 0) {
-                            const r2 = trail === 0 ? 4 : 3 - trail * 0.3,
-                                a = trail === 0 ? 0.95 : 0.7 - trail * 0.1;
-                            gx.beginPath();
-                            gx.arc(
-                                tp[0],
-                                tp[1],
-                                Math.max(0.5, r2),
-                                0,
-                                Math.PI * 2,
-                            );
-                            gx.fillStyle = st.g + a + ')';
-
-                            if (trail === 0) {
-                                gx.shadowBlur = 16;
-                                gx.shadowColor = st.g + '.9)';
-                            }
-
-                            gx.fill();
-                            gx.shadowBlur = 0;
-                        }
-                    }
-                }
-
-                gx.globalAlpha = 1;
-            });
-
-            // nodes
-            if (G.n > 0.02) {
-                gx.globalAlpha = G.d * G.n;
-                CITIES.forEach((city, ci) => {
-                    const v = vw(toV(city[1], city[2]));
-
-                    if (v[2] < 0.04) {
-                        return;
-                    }
-
-                    const p = pr(v, R, cx, cy);
-                    const pulse = 0.5 + 0.5 * Math.sin(ts * 0.0016 + ci * 0.85);
-                    const fAge = ts - cityFlash[ci];
-
-                    if (fAge < 1200 && cityFlash[ci] > 0) {
-                        const fp = fAge / 1200;
-                        gx.beginPath();
-                        gx.arc(
-                            p[0],
-                            p[1],
-                            R * 0.04 * G.zsc * (fp + 0.1),
-                            0,
-                            Math.PI * 2,
-                        );
-                        gx.strokeStyle = `rgba(232,201,138,${(1 - fp) * 0.6})`;
-                        gx.lineWidth = 1.5;
-                        gx.stroke();
-                    }
-
-                    gx.beginPath();
-                    gx.arc(p[0], p[1], 9 * pulse, 0, Math.PI * 2);
-                    gx.strokeStyle = 'rgba(201,169,110,.09)';
-                    gx.lineWidth = 1;
-                    gx.stroke();
-                    gx.beginPath();
-                    gx.arc(p[0], p[1], 2.8, 0, Math.PI * 2);
-                    gx.fillStyle = '#e8c98a';
-                    gx.shadowBlur = 8;
-                    gx.shadowColor = 'rgba(232,201,138,.65)';
-                    gx.fill();
-                    gx.shadowBlur = 0;
-
-                    if (v[2] > 0.18) {
-                        gx.font = `200 ${Math.max(7, 8.5 * G.zsc)}px "DM Sans",sans-serif`;
-                        gx.fillStyle = 'rgba(185,162,112,.55)';
-                        gx.fillText(
-                            city[0],
-                            p[0] + 7 * G.zsc,
-                            p[1] - 4 * G.zsc,
-                        );
-                    }
-                });
-                gx.globalAlpha = 1;
-            }
-
-            gx.globalAlpha = 1;
-        }
-
-        // ─── telemetry ───
-        let eBase = -18.742,
-            iterCount = 0;
-        const telInterval = setInterval(() => {
-            eBase += (Math.random() - 0.5) * 0.035 - 0.0015;
-            iterCount = Math.min(
-                iterCount + Math.floor(Math.random() * 3 + 1),
-                312,
-            );
-            const fid = Math.min(0.999, 0.85 + (iterCount / 312) * 0.15);
-            const eEl = document.getElementById('prs-telE');
-            const iEl = document.getElementById('prs-telI');
-            const fEl = document.getElementById('prs-telF');
-
-            if (eEl) {
-                eEl.textContent = eBase.toFixed(3);
-            }
-
-            if (iEl) {
-                iEl.textContent = String(iterCount).padStart(3, '0');
-            }
-
-            if (fEl) {
-                fEl.textContent = fid.toFixed(3);
-            }
-        }, 180);
-
-        // ─── stat counters ───
-        let statStart: number | null = null;
-        const STAT_DUR = 2200;
-        function animStats(ts: number) {
-            if (curRef.current !== 15) {
-                return;
-            }
-
-            if (!statStart) {
-                return;
-            }
-
-            const p = Math.min((ts - statStart) / STAT_DUR, 1);
-            const e = 1 - Math.pow(1 - p, 3);
-            const qEl = document.getElementById('prs-sGap');
-            const dEl = document.getElementById('prs-sFair');
-            const iEl = document.getElementById('prs-sScale');
-
-            if (qEl) {
-                qEl.innerHTML = `${(0.0 * e).toFixed(1)}<sup style="font-size:.42em">%</sup>`;
-            }
-
-            if (dEl) {
-                dEl.innerHTML = `${Math.round(6441 * e).toLocaleString()}`;
-            }
-
-            if (iEl) {
-                iEl.textContent = String(Math.round(1000 * e).toLocaleString());
-            }
-        }
-
-        // ─── energy chart ───
-        function drawEnergyChart() {
-            const canvas = echRef.current;
-
-            if (!canvas) {
-                return;
-            }
-
-            const W2 = Math.min(800, window.innerWidth - 120),
-                H2 = 240;
-            canvas.width = W2;
-            canvas.height = H2;
-            const ctx = canvas.getContext('2d')!;
-            ctx.clearRect(0, 0, W2, H2);
-            const N = 312,
-                pad = 40;
-            const pts: number[] = [];
-            let e = -5;
-
-            for (let i = 0; i < N; i++) {
-                e +=
-                    -0.065 * (e + 18.742) +
-                    (Math.random() - 0.5) * 0.4 * (1 / (1 + i * 0.02));
-                pts.push(e);
-            }
-
-            const minE = Math.min(...pts),
-                maxE = Math.max(...pts);
-            const mapX = (i: number) => pad + (i / N) * (W2 - pad * 2);
-            const mapY = (v: number) =>
-                H2 - pad - ((v - minE) / (maxE - minE)) * (H2 - pad * 2);
-            ctx.strokeStyle = 'rgba(201,169,110,.12)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(pad, pad * 0.5);
-            ctx.lineTo(pad, H2 - pad);
-            ctx.lineTo(W2 - pad, H2 - pad);
-            ctx.stroke();
-            const gr = ctx.createLinearGradient(0, 0, 0, H2);
-            gr.addColorStop(0, 'rgba(201,169,110,.18)');
-            gr.addColorStop(1, 'rgba(201,169,110,.0)');
-            ctx.beginPath();
-            ctx.moveTo(mapX(0), mapY(pts[0]));
-
-            for (let i = 1; i < N; i++) {
-                ctx.lineTo(mapX(i), mapY(pts[i]));
-            }
-
-            ctx.lineTo(mapX(N - 1), H2 - pad);
-            ctx.lineTo(mapX(0), H2 - pad);
-            ctx.closePath();
-            ctx.fillStyle = gr;
-            ctx.fill();
-            ctx.beginPath();
-            ctx.moveTo(mapX(0), mapY(pts[0]));
-
-            for (let i = 1; i < N; i++) {
-                ctx.lineTo(mapX(i), mapY(pts[i]));
-            }
-
-            ctx.strokeStyle = 'rgba(201,169,110,.75)';
-            ctx.lineWidth = 1.5;
-            ctx.shadowBlur = 6;
-            ctx.shadowColor = 'rgba(201,169,110,.4)';
-            ctx.stroke();
-            ctx.shadowBlur = 0;
-            ctx.beginPath();
-            ctx.arc(mapX(N - 1), mapY(pts[N - 1]), 4, 0, Math.PI * 2);
-            ctx.fillStyle = '#e8c98a';
-            ctx.shadowBlur = 12;
-            ctx.shadowColor = 'rgba(232,201,138,.8)';
-            ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.font = '200 8px "DM Sans",sans-serif';
-            ctx.fillStyle = 'rgba(80,80,74,.8)';
-            ctx.fillText('ITERATION', W2 / 2, H2 - 8);
-            ctx.save();
-            ctx.translate(12, H2 / 2);
-            ctx.rotate(-Math.PI / 2);
-            ctx.fillText('ENERGY ⟨H꜀⟩', 0, 0);
-            ctx.restore();
-        }
-
-        // ─── slides ───
-        const N_SLIDES = SS.length;
-        function goTo(i: number) {
-            const prev = curRef.current;
-            curRef.current = Math.max(0, Math.min(N_SLIDES - 1, i));
-
-            if (curRef.current === prev) {
-                return;
-            }
-
-            document.querySelectorAll('.prs-slide').forEach((el, idx) => {
-                el.classList.toggle('prs-active', idx === curRef.current);
-            });
-            const ctrEl = document.getElementById('prs-ctr');
-            const slblEl = document.getElementById('prs-slbl');
-            const plEl = document.getElementById('prs-pl');
-            const telEl = document.getElementById('prs-telemetry');
-            const flashEl = document.getElementById('prs-flash');
-
-            if (ctrEl) {
-                ctrEl.textContent = `${String(curRef.current + 1).padStart(2, '0')} / ${String(N_SLIDES).padStart(2, '0')}`;
-            }
-
-            if (slblEl) {
-                slblEl.textContent = SLIDE_LABELS[curRef.current] || '';
-            }
-
-            if (plEl) {
-                plEl.style.width =
-                    ((curRef.current + 1) / N_SLIDES) * 100 + '%';
-            }
-
-            if (telEl) {
-                telEl.classList.toggle(
-                    'prs-visible',
-                    curRef.current >= 8 && curRef.current <= 16,
-                );
-            }
-
-            if (curRef.current === 15) {
-                statStart = performance.now();
-                iterCount = 0;
-                eBase = -18.742;
-            }
-
-            if (curRef.current === 14) {
-                drawEnergyChart();
-            }
-
-            // flash
-            if (flashEl) {
-                flashEl.style.opacity = '1';
-                setTimeout(() => {
-                    if (flashEl) {
-                        flashEl.style.opacity = '0';
-                    }
-                }, 150);
-            }
-
-            // zoom badge
-            const slideEl = document.querySelectorAll('.prs-slide')[
-                curRef.current
-            ] as HTMLElement;
-            const zk = slideEl?.dataset?.zoom;
-            const zbEl = document.getElementById('prs-zoom-badge');
-
-            if (zbEl && zk) {
-                const labels: Record<string, string> = {
-                    'brazil-benchmark': 'Zooming — RioClaroPostToy',
-                    'cloud-proof': 'Zooming — IBM Quantum proof',
-                    'topology-benchmarks': 'Zooming — topology transfer',
-                };
-                zbEl.textContent = labels[zk] || '';
-                zbEl.style.opacity = '1';
-                setTimeout(() => {
-                    if (zbEl) {
-                        zbEl.style.opacity = '0';
-                    }
-                }, 2200);
-            }
-
-            try {
-                localStorage.setItem('vrp-slide', String(curRef.current));
-            } catch (_) {}
-        }
-        goToRef.current = goTo;
-
-        // keyboard
-        function onKey(e: KeyboardEvent) {
-            if (
-                /INPUT|TEXTAREA/.test((e.target as HTMLElement)?.tagName || '')
-            ) {
-                return;
-            }
-
-            if (
-                e.key === 'ArrowRight' ||
-                e.key === ' ' ||
-                e.key === 'PageDown'
-            ) {
-                goTo(curRef.current + 1);
-            }
-
-            if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
-                goTo(curRef.current - 1);
-            }
-
-            if (e.key === 'Home') {
-                goTo(0);
-            }
-
-            if (e.key === 'End') {
-                goTo(N_SLIDES - 1);
-            }
-        }
-        window.addEventListener('keydown', onKey);
-
-        // restore saved slide
-        const saved = +(localStorage.getItem('vrp-slide') || 0);
-        goTo(Math.min(saved, N_SLIDES - 1));
-
-        // ─── loop ───
-        function loop(ts: number) {
-            drawBg();
-            drawGlobe(ts);
-            animStats(ts);
-            rafRef.current = requestAnimationFrame(loop);
-        }
-        rafRef.current = requestAnimationFrame(loop);
-
-        // ─── circuit ───
-        (function buildCircuit() {
-            const NQUBITS = 6,
-                CTRL_ROWS = [0, 2, 4];
-            const LAYER_LABELS = [
-                { l: 'Init', span: 3 },
-                { l: 'Cost  γ₁', span: 4 },
-                { l: 'Mix  β₁', span: 2 },
-                { l: 'Cost  γ₂', span: 4 },
-                { l: 'Mix  β₂', span: 2 },
-                { l: 'Measure', span: 1 },
-            ];
-            const GATE_SEQ = [
-                'wseg',
-                'gH',
-                'wseg',
-                'gRz',
-                'wseg',
-                'ctrl',
-                'wseg',
-                'gRx',
-                'wseg',
-                'gRz',
-                'wseg',
-                'ctrl',
-                'wseg',
-                'gRx',
-                'wseg',
-                'gM',
-            ];
-            const container = document.getElementById('prs-qcDiagram');
-
-            if (!container) {
-                return;
-            }
-
-            const bar = document.createElement('div');
-            bar.className = 'prs-layer-bar';
-            LAYER_LABELS.forEach(({ l, span }) => {
-                const d = document.createElement('div');
-                d.className = 'prs-layer-lbl';
-                d.style.flex = String(span);
-                d.textContent = l;
-                bar.appendChild(d);
-            });
-            container.appendChild(bar);
-
-            for (let q = 0; q < NQUBITS; q++) {
-                const row = document.createElement('div');
-                row.className = 'prs-qrow';
-                const lbl = document.createElement('div');
-                lbl.className = 'prs-qlbl';
-                lbl.textContent = `|q${q}⟩`;
-                row.appendChild(lbl);
-                const wire = document.createElement('div');
-                wire.className = 'prs-qwire';
-                GATE_SEQ.forEach((g) => {
-                    const el = document.createElement('div');
-
-                    if (g === 'wseg') {
-                        el.className = 'prs-wseg';
-                    } else if (g === 'gH') {
-                        el.className = 'prs-g prs-gH';
-                        el.textContent = 'H';
-                    } else if (g === 'gRz') {
-                        el.className = 'prs-g prs-gRz';
-                        el.textContent = 'Rz(γ)';
-                    } else if (g === 'gRx') {
-                        el.className = 'prs-g prs-gRx';
-                        el.textContent = 'Rx(β)';
-                    } else if (g === 'gM') {
-                        el.className = 'prs-g prs-gM';
-                        el.innerHTML = '⊙';
-                    } else if (g === 'ctrl') {
-                        el.className = CTRL_ROWS.includes(q)
-                            ? 'prs-ctrl'
-                            : 'prs-tgt2';
-
-                        if (!CTRL_ROWS.includes(q)) {
-                            el.textContent = '⊕';
-                        }
-                    }
-
-                    wire.appendChild(el);
-                });
-                wire.appendChild(
-                    Object.assign(document.createElement('div'), {
-                        className: 'prs-pulse',
-                    }),
-                );
-                row.appendChild(wire);
-                container.appendChild(row);
-            }
-
-            setTimeout(() => {
-                if (!container) {
-                    return;
-                }
-
-                const rows = [...container.querySelectorAll('.prs-qrow')];
-                rows.forEach((row, ri) => {
-                    if (!CTRL_ROWS.includes(ri)) {
-                        return;
-                    }
-
-                    row.querySelectorAll('.prs-ctrl').forEach((el) => {
-                        const r1 = el.getBoundingClientRect();
-                        const r2 = (rows[ri + 1] as HTMLElement)
-                            ?.querySelector('.prs-tgt2')
-                            ?.getBoundingClientRect();
-
-                        if (!r2) {
-                            return;
-                        }
-
-                        const cr = container.getBoundingClientRect();
-                        const vert = Object.assign(
-                            document.createElement('div'),
-                            { className: 'prs-vert' },
-                        );
-                        vert.style.left =
-                            r1.left + r1.width / 2 - cr.left + 'px';
-                        vert.style.top = r1.bottom - cr.top + 'px';
-                        vert.style.height = r2.top - r1.bottom + 'px';
-                        container.style.position = 'relative';
-                        container.appendChild(vert);
-                    });
-                });
-            }, 500);
-        })();
-
-        return () => {
-            cancelAnimationFrame(rafRef.current);
-            clearInterval(telInterval);
-            window.removeEventListener('resize', resize);
-            window.removeEventListener('keydown', onKey);
-        };
-    }, []);
-
-    const goTo = useCallback((i: number) => goToRef.current(i), []);
-
-    const N_SLIDES = SS.length;
-
-    return (
-        <>
-            <Head title="Presentation · Quantum VRP">
-                <link
-                    href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=DM+Sans:wght@200;300;400&family=Space+Mono:wght@400&display=swap"
-                    rel="stylesheet"
-                />
-            </Head>
-
-            <style>{`
-                /* ── reset for presentation ── */
-                #prs-root *, #prs-root *::before, #prs-root *::after { box-sizing: border-box; margin: 0; padding: 0; }
-                #prs-root { --gold:#facc15; --gold2:#fde68a; --cyan:#7dd3fc; --rose:#f472b6; --mint:#34d399; --violet:#a78bfa; --iv:#f2f5ef; --dim:#8b8a7f; --bg:#05060d; position:fixed; inset:0; background:#05060d; overflow:hidden; z-index:9999; }
-                #prs-root canvas { position:fixed; inset:0; }
-                #prs-bg { z-index:0; } #prs-globe { z-index:1; }
-
-                /* slides */
-                #prs-deck { position:fixed; inset:0; z-index:10; pointer-events:none; }
-                .prs-slide { position:absolute; inset:0; display:flex; opacity:0; pointer-events:none; transition:opacity 1.1s ease; }
-                .prs-slide.prs-active { opacity:1; pointer-events:auto; }
-                .prs-txt { display:flex; flex-direction:column; justify-content:center; padding:clamp(40px,5vh,80px) clamp(48px,5vw,88px); transform:translateY(18px) scale(.99); transition:transform 1.2s cubic-bezier(.16,1,.3,1); }
-                .prs-slide.prs-active .prs-txt { transform:none; }
-                .prs-ey { font-family:'DM Sans',sans-serif; font-weight:200; font-size:10px; letter-spacing:.42em; text-transform:uppercase; color:#50504a; margin-bottom:18px; }
-                .prs-hd { font-family:'Cormorant Garamond',serif; font-weight:300; font-size:64px; line-height:.93; color:#f2f5ef; letter-spacing:0; }
-                .prs-hd em { font-style:italic; color:#facc15; }
-                .prs-hr { width:36px; height:1px; background:linear-gradient(90deg,var(--cyan),var(--rose),var(--gold)); margin:24px 0; opacity:.55; }
-                .prs-bd { font-family:'DM Sans',sans-serif; font-weight:200; font-size:16px; line-height:1.8; color:#aaa69a; max-width:420px; }
-                .prs-tg { display:flex; align-items:center; gap:9px; margin-top:22px; }
-                .prs-tgd { width:5px; height:5px; border-radius:50%; background:#c9a96e; opacity:.55; flex-shrink:0; }
-                .prs-tgt { font-family:'DM Sans',sans-serif; font-weight:200; font-size:9px; letter-spacing:.28em; text-transform:uppercase; color:#50504a; }
-                .prs-nbig { font-family:'Cormorant Garamond',serif; font-weight:300; font-size:38px; color:#facc15; margin-top:22px; letter-spacing:0; }
-
-                /* layouts */
-                .prs-lc { align-items:center; justify-content:center; }
-                .prs-lr { align-items:center; justify-content:flex-end; }
-                .prs-ll { align-items:center; justify-content:flex-start; }
-                .prs-lb { align-items:flex-end; justify-content:center; }
-                .prs-lc .prs-txt, .prs-lb .prs-txt { align-items:center; text-align:center; }
-                .prs-lc .prs-bd, .prs-lb .prs-bd { text-align:center; margin:0 auto; }
-                .prs-lc .prs-hr, .prs-lb .prs-hr { margin-left:auto; margin-right:auto; }
-                .prs-lc .prs-tg, .prs-lb .prs-tg { justify-content:center; }
-                .prs-glass { background:linear-gradient(145deg,rgba(5,6,13,.76),rgba(12,19,28,.58)); border:1px solid rgba(125,211,252,.13); backdrop-filter:blur(22px); padding:52px 68px!important; max-width:620px; }
-
-                /* stat grid */
-                .prs-sgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:0 56px; }
-                .prs-sv { font-family:'Cormorant Garamond',serif; font-weight:300; font-size:78px; line-height:.9; color:#fde68a; text-shadow:0 0 50px rgba(125,211,252,.18); letter-spacing:0; }
-                .prs-sl { font-family:'DM Sans',sans-serif; font-weight:200; font-size:9px; letter-spacing:.3em; text-transform:uppercase; color:#50504a; margin-top:8px; }
-
-                /* report-native visuals */
-                .prs-kicker-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:26px; max-width:620px; }
-                .prs-pill { border:1px solid rgba(125,211,252,.18); color:rgba(242,245,239,.72); background:rgba(125,211,252,.05); padding:8px 11px; font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.06em; text-transform:uppercase; }
-                .prs-pill:nth-child(2n) { border-color:rgba(244,114,182,.18); background:rgba(244,114,182,.05); }
-                .prs-pill:nth-child(3n) { border-color:rgba(52,211,153,.18); background:rgba(52,211,153,.05); }
-                .prs-equation { margin-top:24px; padding:20px 24px; border-left:2px solid var(--cyan); background:rgba(125,211,252,.045); color:#e8fbff; font-family:'Space Mono',monospace; font-size:18px; line-height:1.7; max-width:620px; box-shadow:0 0 42px rgba(125,211,252,.05) inset; }
-                .prs-equation small { display:block; margin-top:8px; color:#8b8a7f; font-family:'DM Sans',sans-serif; font-size:11px; letter-spacing:.12em; text-transform:uppercase; }
-                .prs-matrix { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:28px; max-width:620px; }
-                .prs-mcell { border:1px solid rgba(242,245,239,.08); background:rgba(242,245,239,.035); padding:16px; min-height:98px; }
-                .prs-mcell b { display:block; color:#f2f5ef; font-family:'DM Sans',sans-serif; font-weight:300; font-size:12px; letter-spacing:.18em; text-transform:uppercase; margin-bottom:8px; }
-                .prs-mcell span { display:block; color:#99968b; font-family:'DM Sans',sans-serif; font-size:13px; line-height:1.55; }
-                .prs-pipeline { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; width:min(980px,82vw); margin-top:34px; }
-                .prs-step { min-height:150px; border:1px solid rgba(125,211,252,.13); background:linear-gradient(180deg,rgba(125,211,252,.06),rgba(5,6,13,.2)); padding:16px; position:relative; overflow:hidden; }
-                .prs-step::before { content:''; position:absolute; inset:0 0 auto 0; height:2px; background:linear-gradient(90deg,var(--cyan),var(--rose),var(--mint)); opacity:.55; }
-                .prs-step-num { font-family:'Space Mono',monospace; color:#facc15; font-size:12px; margin-bottom:18px; }
-                .prs-step-title { font-family:'DM Sans',sans-serif; font-weight:300; color:#f2f5ef; font-size:12px; letter-spacing:.15em; text-transform:uppercase; margin-bottom:8px; }
-                .prs-step-copy { font-family:'DM Sans',sans-serif; color:#9d998e; font-size:12px; line-height:1.55; }
-                .prs-bench { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-top:30px; width:min(980px,82vw); }
-                .prs-bench-card { border:1px solid rgba(242,245,239,.08); background:rgba(5,6,13,.58); padding:18px; min-height:128px; backdrop-filter:blur(14px); }
-                .prs-bench-value { color:#fde68a; font-family:'Cormorant Garamond',serif; font-size:38px; line-height:.9; margin-bottom:12px; }
-                .prs-bench-label { color:#f2f5ef; font-family:'DM Sans',sans-serif; font-size:11px; letter-spacing:.18em; text-transform:uppercase; margin-bottom:8px; }
-                .prs-bench-copy { color:#918d84; font-family:'DM Sans',sans-serif; font-size:12px; line-height:1.5; }
-                .prs-system { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin-top:30px; max-width:740px; }
-                .prs-system-card { border:1px solid rgba(125,211,252,.12); background:rgba(5,6,13,.65); padding:20px; min-height:150px; }
-                .prs-system-card:nth-child(2) { border-color:rgba(52,211,153,.14); }
-                .prs-system-card:nth-child(3) { border-color:rgba(244,114,182,.14); }
-                .prs-system-top { color:#facc15; font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.12em; text-transform:uppercase; margin-bottom:16px; }
-                .prs-system-title { color:#f2f5ef; font-family:'Cormorant Garamond',serif; font-size:30px; margin-bottom:8px; }
-                .prs-system-copy { color:#9d998e; font-family:'DM Sans',sans-serif; font-size:12px; line-height:1.55; }
-                .prs-warning { margin-top:22px; border:1px solid rgba(244,114,182,.18); background:rgba(244,114,182,.05); color:#f7c7df; font-family:'DM Sans',sans-serif; font-size:13px; line-height:1.6; padding:16px 18px; max-width:560px; }
-                @media (max-width: 800px) {
-                    .prs-hd { font-size:42px; }
-                    .prs-bd { font-size:14px; }
-                    .prs-txt { padding:34px 28px; }
-                    .prs-glass { padding:34px 30px!important; }
-                    .prs-sgrid, .prs-matrix, .prs-bench, .prs-system, .prs-pipeline { grid-template-columns:1fr; width:auto; max-width:86vw; gap:8px; }
-                    .prs-step, .prs-bench-card, .prs-system-card { min-height:auto; }
-                    .prs-sv { font-size:48px; }
-                }
-
-                /* circuit */
-                .prs-circuit-wrap { width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:44px 60px; gap:28px; transform:translateY(18px); transition:transform 1.2s cubic-bezier(.16,1,.3,1); }
-                .prs-slide.prs-active .prs-circuit-wrap { transform:none; }
-                .prs-qc { width:100%; max-width:920px; display:flex; flex-direction:column; gap:0; position:relative; }
-                .prs-layer-bar { display:flex; padding-left:56px; margin-bottom:6px; gap:0; }
-                .prs-layer-lbl { font-family:'DM Sans',sans-serif; font-weight:200; font-size:8px; letter-spacing:.2em; text-transform:uppercase; color:rgba(201,169,110,.35); text-align:center; border-left:1px solid rgba(201,169,110,.1); padding:0 8px; }
-                .prs-qrow { display:flex; align-items:center; height:44px; position:relative; }
-                .prs-qlbl { font-family:'Space Mono',monospace; font-size:11px; color:rgba(201,169,110,.65); width:52px; flex-shrink:0; text-align:right; padding-right:8px; }
-                .prs-qwire { flex:1; height:1px; background:rgba(201,169,110,.2); position:relative; display:flex; align-items:center; }
-                .prs-g { flex-shrink:0; height:22px; border:1px solid; display:flex; align-items:center; justify-content:center; font-family:'DM Sans',sans-serif; font-weight:300; font-size:8.5px; letter-spacing:.04em; background:rgba(7,6,13,.9); position:relative; z-index:2; }
-                .prs-gH { width:26px; border-color:rgba(201,169,110,.7); color:#c9a96e; box-shadow:0 0 8px rgba(201,169,110,.15); }
-                .prs-gRz { width:34px; border-color:rgba(180,140,80,.45); color:#b08858; }
-                .prs-gRx { width:34px; border-color:rgba(160,120,60,.45); color:#9a7848; }
-                .prs-gM { width:26px; border-color:rgba(201,169,110,.25); color:rgba(201,169,110,.45); }
-                .prs-wseg { flex:1; height:1px; background:rgba(201,169,110,.18); }
-                .prs-ctrl { width:10px; height:10px; border-radius:50%; background:rgba(201,169,110,.7); flex-shrink:0; z-index:2; box-shadow:0 0 6px rgba(201,169,110,.4); }
-                .prs-tgt2 { width:16px; height:16px; border-radius:50%; border:1px solid rgba(201,169,110,.55); display:flex; align-items:center; justify-content:center; font-size:11px; color:rgba(201,169,110,.55); flex-shrink:0; z-index:2; background:rgba(7,6,13,.9); }
-                .prs-vert { position:absolute; width:1px; background:rgba(201,169,110,.3); z-index:1; pointer-events:none; }
-                @keyframes prs-cpulse { 0%{left:0;opacity:0;width:40px} 8%{opacity:1} 85%{opacity:1} 100%{left:100%;opacity:0;width:80px} }
-                .prs-pulse { position:absolute; top:0; height:1px; background:linear-gradient(90deg,transparent,rgba(232,201,138,.95),rgba(201,169,110,.6),transparent); pointer-events:none; animation:prs-cpulse 5s ease-in-out infinite; }
-                .prs-qrow:nth-child(2) .prs-pulse{animation-delay:-.5s}
-                .prs-qrow:nth-child(3) .prs-pulse{animation-delay:-1s}
-                .prs-qrow:nth-child(4) .prs-pulse{animation-delay:-1.5s}
-                .prs-qrow:nth-child(5) .prs-pulse{animation-delay:-2s}
-                .prs-qrow:nth-child(6) .prs-pulse{animation-delay:-2.5s}
-                .prs-circuit-foot { font-family:'DM Sans',sans-serif; font-weight:200; font-size:9px; letter-spacing:.3em; text-transform:uppercase; color:#50504a; text-align:center; }
-
-                /* energy chart wrap */
-                .prs-echart-wrap { width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:44px 60px; gap:20px; transform:translateY(18px); transition:transform 1.2s cubic-bezier(.16,1,.3,1); }
-                .prs-slide.prs-active .prs-echart-wrap { transform:none; }
-
-                /* app panel */
-                .prs-app-panel { width:100%; height:100%; display:flex; flex-direction:column; align-items:flex-start; justify-content:center; padding:clamp(40px,5vh,80px) clamp(48px,5vw,88px); transform:translateY(18px); transition:transform 1.2s cubic-bezier(.16,1,.3,1); }
-                .prs-slide.prs-active .prs-app-panel { transform:none; }
-                .prs-app-mockup { margin-top:28px; display:flex; gap:14px; flex-wrap:wrap; max-width:500px; }
-                .prs-app-card { background:rgba(7,6,13,.7); border:1px solid rgba(201,169,110,.08); backdrop-filter:blur(16px); padding:18px 22px; flex:1; min-width:130px; }
-                .prs-app-card-label { font-family:'DM Sans',sans-serif; font-weight:200; font-size:8px; letter-spacing:.3em; text-transform:uppercase; color:#50504a; margin-bottom:8px; }
-                .prs-app-card-val { font-family:'Cormorant Garamond',serif; font-weight:300; font-size:clamp(22px,2.4vw,36px); color:#e8c98a; }
-                .prs-app-stack { display:flex; flex-direction:column; gap:7px; margin-top:28px; }
-                .prs-app-stack-row { display:flex; align-items:center; gap:12px; }
-                .prs-app-stack-dot { width:4px; height:4px; border-radius:50%; background:#c9a96e; opacity:.5; flex-shrink:0; }
-                .prs-app-stack-text { font-family:'DM Sans',sans-serif; font-weight:200; font-size:11px; letter-spacing:.15em; color:#696560; }
-
-                /* nav */
-                #prs-nav { position:fixed; bottom:28px; left:50%; transform:translateX(-50%); z-index:50; display:flex; align-items:center; gap:20px; }
-                .prs-nb { font-family:'Cormorant Garamond',serif; font-weight:300; font-size:22px; background:none; border:none; cursor:pointer; color:rgba(201,169,110,.28); padding:6px 10px; transition:color .3s; line-height:1; }
-                .prs-nb:hover { color:#c9a96e; }
-                #prs-ctr { font-family:'DM Sans',sans-serif; font-weight:200; font-size:9px; letter-spacing:.35em; color:#50504a; min-width:55px; text-align:center; }
-                #prs-pl { position:fixed; bottom:0; left:0; height:1px; background:rgba(201,169,110,.22); transition:width .7s cubic-bezier(.4,0,.2,1); }
-                #prs-wm { position:fixed; top:36px; left:54px; z-index:20; pointer-events:none; font-family:'DM Sans',sans-serif; font-weight:200; font-size:9px; letter-spacing:.4em; text-transform:uppercase; color:#50504a; }
-                #prs-slbl { position:fixed; top:36px; right:54px; z-index:20; pointer-events:none; font-family:'DM Sans',sans-serif; font-weight:200; font-size:9px; letter-spacing:.35em; text-transform:uppercase; color:#50504a; }
-                #prs-telemetry { position:fixed; bottom:70px; right:54px; z-index:20; pointer-events:none; text-align:right; opacity:0; transition:opacity .8s; }
-                #prs-telemetry.prs-visible { opacity:1; }
-                .prs-tel-row { font-family:'Space Mono',monospace; font-size:9px; color:rgba(201,169,110,.4); letter-spacing:.08em; margin-bottom:3px; }
-                .prs-tel-val { color:rgba(201,169,110,.7); }
-                #prs-flash { position:fixed; inset:0; z-index:100; background:rgba(201,169,110,.04); opacity:0; pointer-events:none; transition:opacity .15s ease; }
-                #prs-zoom-badge { position:fixed; top:36px; left:50%; transform:translateX(-50%); z-index:30; font-family:'DM Sans',sans-serif; font-weight:200; font-size:9px; letter-spacing:.4em; text-transform:uppercase; color:#50504a; pointer-events:none; opacity:0; transition:opacity .8s; }
-                /* esc button */
-                #prs-esc { position:fixed; top:28px; left:28px; z-index:200; font-family:'DM Sans',sans-serif; font-weight:200; font-size:9px; letter-spacing:.3em; text-transform:uppercase; color:rgba(80,80,74,.5); background:none; border:none; cursor:pointer; padding:4px 8px; transition:color .3s; }
-                #prs-esc:hover { color:#c9a96e; }
-            `}</style>
-
-            <div id="prs-root">
-                <canvas ref={bgRef} id="prs-bg" />
-                <canvas ref={gcRef} id="prs-globe" />
-                <div id="prs-wm">
-                    VRPFR &ensp;·&ensp; Quantum Optimization &ensp;·&ensp; 2026
-                </div>
-                <div id="prs-slbl"></div>
-                <div id="prs-pl" style={{ width: 0 }}></div>
-                <div id="prs-flash"></div>
-                <div id="prs-zoom-badge"></div>
-
-                <div id="prs-telemetry">
-                    <div className="prs-tel-row">
-                        ENERGY &ensp;
-                        <span className="prs-tel-val" id="prs-telE">
-                            −18.742
-                        </span>
-                    </div>
-                    <div className="prs-tel-row">
-                        ITERATION &ensp;
-                        <span className="prs-tel-val" id="prs-telI">
-                            000
-                        </span>
-                    </div>
-                    <div className="prs-tel-row">
-                        FIDELITY &ensp;
-                        <span className="prs-tel-val" id="prs-telF">
-                            0.000
-                        </span>
-                    </div>
-                </div>
-
-                <div id="prs-deck">
-                    {/* 01 */}
-                    <section className="prs-slide prs-lc" data-label="01 Title">
-                        <div className="prs-txt prs-glass">
-                            <div className="prs-ey">
-                                Senior Design Project · Spring 2026
-                            </div>
-                            <div className="prs-hd">
-                                Optimal delivery routes
-                                <br />
-                                using <em>quantum</em>
-                                <br />
-                                optimization.
-                            </div>
-                            <div className="prs-hr" />
-                            <div className="prs-bd">
-                                Design and Implementation of Optimal Delivery
-                                Routes Using Quantum Optimization Algorithms.
-                            </div>
-                            <div className="prs-kicker-row">
-                                <div className="prs-pill">Leen Almousa</div>
-                                <div className="prs-pill">
-                                    Abdulrahman Al-Essa
-                                </div>
-                                <div className="prs-pill">Malak Alshawish</div>
-                                <div className="prs-pill">
-                                    Supervisor: Prof. Awos Kanan
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* 02 */}
-                    <section
-                        className="prs-slide prs-lr"
-                        data-label="02 Logistics Pain"
-                    >
-                        <div className="prs-txt" style={{ maxWidth: 560 }}>
-                            <div className="prs-ey">The Logistics Monster</div>
-                            <div className="prs-hd">
-                                Every extra stop
-                                <br />
-                                opens a <em>new universe.</em>
-                            </div>
-                            <div className="prs-hr" />
-                            <div className="prs-bd">
-                                VRP is the engine underneath delivery fleets:
-                                assign customers to vehicles, order the stops,
-                                return to depot, and keep drivers from
-                                inheriting wildly uneven routes.
-                            </div>
-                            <div className="prs-kicker-row">
-                                <div className="prs-pill">Distance</div>
-                                <div className="prs-pill">Fairness</div>
-                                <div className="prs-pill">Dispatch</div>
-                                <div className="prs-pill">Telemetry</div>
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* 03 */}
-                    <section
-                        className="prs-slide prs-ll"
-                        data-label="03 Explosion"
-                    >
-                        <div className="prs-txt" style={{ maxWidth: 620 }}>
-                            <div className="prs-ey">NP-Hard, With Teeth</div>
-                            <div className="prs-hd">
-                                <em>10¹⁶⁵</em>
-                                <br />
-                                possible worlds.
-                            </div>
-                            <div className="prs-hr" />
-                            <div className="prs-bd">
-                                For 100 customers and 10 vehicles, the report
-                                estimates customer assignment and per-vehicle
-                                ordering at roughly 10¹⁶⁵ combinations.
-                                Exhaustive search is not a strategy; it is a
-                                bonfire.
-                            </div>
-                            <div className="prs-equation">
-                                kⁿ × ∏(nᵢ!)
-                                <small>
-                                    assignment explosion × route ordering
-                                    explosion
-                                </small>
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* 04 */}
-                    <section
-                        className="prs-slide prs-lr"
-                        data-label="04 Objective"
-                    >
-                        <div className="prs-txt" style={{ maxWidth: 640 }}>
-                            <div className="prs-ey">The Project's Twist</div>
-                            <div className="prs-hd">
-                                Shortest route is not
-                                <br />
-                                the same as <em>best fleet.</em>
-                            </div>
-                            <div className="prs-hr" />
-                            <div className="prs-bd">
-                                The document treats fairness as operational
-                                reality: a route plan that saves distance by
-                                overloading one driver is mathematically neat
-                                and logistically broken.
-                            </div>
-                            <div className="prs-equation">
-                                Score = 0.5 · D/k + 0.5 · σ
-                                <small>
-                                    average distance per vehicle plus workload
-                                    standard deviation
-                                </small>
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* 05 */}
-                    <section
-                        className="prs-slide prs-lc"
-                        data-label="05 Quantum Primer"
-                    >
-                        <div className="prs-txt prs-glass">
-                            <div className="prs-ey">Quantum Ingredients</div>
-                            <div className="prs-hd">
-                                Superposition.
-                                <br />
-                                <em>Entanglement.</em>
-                                <br />
-                                Interference.
-                            </div>
-                            <div className="prs-hr" />
-                            <div className="prs-bd">
-                                Qubits explore probability amplitudes, entangle
-                                route decisions, and use interference to amplify
-                                better outcomes while measurement collapses the
-                                circuit into a candidate bitstring.
-                            </div>
-                            <div className="prs-matrix">
-                                <div className="prs-mcell">
-                                    <b>Superposition</b>
-                                    <span>
-                                        All candidate states are represented
-                                        before measurement.
-                                    </span>
-                                </div>
-                                <div className="prs-mcell">
-                                    <b>Entanglement</b>
-                                    <span>
-                                        Route constraints become linked
-                                        decisions across qubits.
-                                    </span>
-                                </div>
-                                <div className="prs-mcell">
-                                    <b>Interference</b>
-                                    <span>
-                                        Good states get amplified; bad states
-                                        are suppressed.
-                                    </span>
-                                </div>
-                                <div className="prs-mcell">
-                                    <b>NISQ Reality</b>
-                                    <span>
-                                        Noise and decoherence limit the depth of
-                                        useful circuits.
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* 06 */}
-                    <section
-                        className="prs-slide prs-ll"
-                        data-label="06 QUBO Map"
-                    >
-                        <div className="prs-txt" style={{ maxWidth: 680 }}>
-                            <div className="prs-ey">Encoding The Problem</div>
-                            <div className="prs-hd">
-                                Routes become
-                                <br />
-                                <em>energy.</em>
-                            </div>
-                            <div className="prs-hr" />
-                            <div className="prs-bd">
-                                Each leaf subproblem is translated into QUBO
-                                form, then mapped to an Ising Hamiltonian. The
-                                lowest-energy state corresponds to the best
-                                feasible route decoded from the bitstring.
-                            </div>
-                            <div className="prs-equation">
-                                f(x) = xᵀQx + cᵀx
-                                <br />x = (1 - Z) / 2
-                                <small>
-                                    binary routing variables to Pauli-Z
-                                    operators
-                                </small>
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* 07 */}
-                    <section
-                        className="prs-slide prs-lc"
-                        data-label="07 QAOA Engine"
-                    >
-                        <div className="prs-txt prs-glass">
-                            <div className="prs-ey">
-                                Hybrid Quantum-Classical Loop
-                            </div>
-                            <div className="prs-hd">
-                                QAOA is the
-                                <br />
-                                <em>leaf engine.</em>
-                            </div>
-                            <div className="prs-hr" />
-                            <div className="prs-bd">
-                                The selected solver uses QAOA with cost and
-                                mixer layers. A classical optimizer tunes γ and
-                                β, then the circuit is sampled and decoded into
-                                feasible routes.
-                            </div>
-                            <div className="prs-kicker-row">
-                                <div className="prs-pill">p = 2</div>
-                                <div className="prs-pill">COBYLA</div>
-                                <div className="prs-pill">maxiter = 50</div>
-                                <div className="prs-pill">3 restarts</div>
-                                <div className="prs-pill">penalty = 2N</div>
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* 08 */}
-                    <section
-                        className="prs-slide prs-lr"
-                        data-label="08 Design Choices"
-                    >
-                        <div className="prs-txt" style={{ maxWidth: 660 }}>
-                            <div className="prs-ey">Chosen Stack</div>
-                            <div className="prs-hd">
-                                Every constraint
-                                <br />
-                                gets a <em>home.</em>
-                            </div>
-                            <div className="prs-hr" />
-                            <div className="prs-matrix">
-                                <div className="prs-mcell">
-                                    <b>Framework</b>
-                                    <span>
-                                        Qiskit for QUBO conversion, QAOA ansatz,
-                                        Aer simulation, IBM runtime access.
-                                    </span>
-                                </div>
-                                <div className="prs-mcell">
-                                    <b>QUBO</b>
-                                    <span>
-                                        Position-indexed for k=1 leaves;
-                                        edge-based plus filtering for k&gt;1
-                                        leaves.
-                                    </span>
-                                </div>
-                                <div className="prs-mcell">
-                                    <b>Solver</b>
-                                    <span>
-                                        Qiskit Aer statevector for reliable
-                                        expectation values under local memory
-                                        limits.
-                                    </span>
-                                </div>
-                                <div className="prs-mcell">
-                                    <b>Product</b>
-                                    <span>
-                                        Laravel backend, React/Inertia
-                                        dashboard, Flutter driver edge app.
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* 09 Circuit */}
-                    <section
-                        className="prs-slide"
-                        data-label="09 Circuit Reactor"
-                    >
-                        <div className="prs-circuit-wrap">
-                            <div style={{ textAlign: 'center' }}>
-                                <div
-                                    className="prs-ey"
-                                    style={{ textAlign: 'center' }}
-                                >
-                                    QAOA Layer Structure
-                                </div>
-                                <div
-                                    className="prs-hd"
-                                    style={{
-                                        textAlign: 'center',
-                                        fontSize: '52px',
-                                    }}
-                                >
-                                    The <em>circuit reactor</em>
-                                </div>
-                            </div>
-                            <div className="prs-qc" id="prs-qcDiagram" />
-                            <div className="prs-circuit-foot">
-                                Representative wires · cost rotations γ · mixer
-                                rotations β · measurement to candidate
-                                bitstrings
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* 10 */}
-                    <section
-                        className="prs-slide prs-lc"
-                        data-label="10 Recursive Pipeline"
-                    >
-                        <div
-                            className="prs-txt"
-                            style={{
-                                alignItems: 'center',
-                                textAlign: 'center',
-                            }}
-                        >
-                            <div
-                                className="prs-ey"
-                                style={{ textAlign: 'center' }}
-                            >
-                                Divide, Solve, Merge
-                            </div>
-                            <div
-                                className="prs-hd"
-                                style={{ textAlign: 'center' }}
-                            >
-                                A classical shell around
-                                <br />
-                                <em>quantum sparks.</em>
-                            </div>
-                            <div className="prs-pipeline">
-                                <div className="prs-step">
-                                    <div className="prs-step-num">01</div>
-                                    <div className="prs-step-title">
-                                        Load Matrix
-                                    </div>
-                                    <div className="prs-step-copy">
-                                        Brazil benchmark coordinates and
-                                        distances enter the solver.
-                                    </div>
-                                </div>
-                                <div className="prs-step">
-                                    <div className="prs-step-num">02</div>
-                                    <div className="prs-step-title">
-                                        Cluster
-                                    </div>
-                                    <div className="prs-step-copy">
-                                        Angular-sweep k-means partitions nodes
-                                        with √n recursion.
-                                    </div>
-                                </div>
-                                <div className="prs-step">
-                                    <div className="prs-step-num">03</div>
-                                    <div className="prs-step-title">
-                                        Leaf QAOA
-                                    </div>
-                                    <div className="prs-step-copy">
-                                        Subproblems are capped so quantum solves
-                                        stay within qubit limits.
-                                    </div>
-                                </div>
-                                <div className="prs-step">
-                                    <div className="prs-step-num">04</div>
-                                    <div className="prs-step-title">
-                                        Supernodes
-                                    </div>
-                                    <div className="prs-step-copy">
-                                        Cluster centroids are routed at the
-                                        macro level.
-                                    </div>
-                                </div>
-                                <div className="prs-step">
-                                    <div className="prs-step-num">05</div>
-                                    <div className="prs-step-title">
-                                        Dispatch
-                                    </div>
-                                    <div className="prs-step-copy">
-                                        2-opt refinement feeds the dashboard and
-                                        driver app.
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* 11 */}
-                    <section
-                        className="prs-slide prs-lr"
-                        data-label="11 Brazil Benchmark"
-                        data-zoom="brazil-benchmark"
-                    >
-                        <div className="prs-txt" style={{ maxWidth: 560 }}>
-                            <div className="prs-ey">RioClaroPostToy</div>
-                            <div className="prs-hd">
-                                Real streets,
-                                <br />
-                                <em>not toy stars.</em>
-                            </div>
-                            <div className="prs-hr" />
-                            <div className="prs-bd">
-                                The benchmark is built from Brazilian postal
-                                delivery geometry: non-uniform delivery
-                                probabilities, street-side penalties, and route
-                                limits equivalent to a six-hour working day.
-                            </div>
-                            <div className="prs-bench">
-                                <div className="prs-bench-card">
-                                    <div className="prs-bench-value">50</div>
-                                    <div className="prs-bench-label">Nodes</div>
-                                    <div className="prs-bench-copy">
-                                        baseline with 15 vehicles
-                                    </div>
-                                </div>
-                                <div className="prs-bench-card">
-                                    <div className="prs-bench-value">100</div>
-                                    <div className="prs-bench-label">Nodes</div>
-                                    <div className="prs-bench-copy">
-                                        10-run averaged stress test
-                                    </div>
-                                </div>
-                                <div className="prs-bench-card">
-                                    <div className="prs-bench-value">200</div>
-                                    <div className="prs-bench-label">Nodes</div>
-                                    <div className="prs-bench-copy">
-                                        expanded fleet pressure
-                                    </div>
-                                </div>
-                                <div className="prs-bench-card">
-                                    <div className="prs-bench-value">1000</div>
-                                    <div className="prs-bench-label">Nodes</div>
-                                    <div className="prs-bench-copy">
-                                        macro-scale decomposition
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* 12 */}
-                    <section
-                        className="prs-slide prs-ll"
-                        data-label="12 Leaf Solver"
-                        data-zoom="cloud-proof"
-                    >
-                        <div className="prs-txt" style={{ maxWidth: 590 }}>
-                            <div className="prs-ey">
-                                Near-Term Quantum Limits
-                            </div>
-                            <div className="prs-hd">
-                                The leaf size is
-                                <br />
-                                <em>physics-shaped.</em>
-                            </div>
-                            <div className="prs-hr" />
-                            <div className="prs-bd">
-                                Statevector memory grows as 2^qubits × 16 bytes.
-                                The report keeps leaf subproblems tiny so Aer
-                                remains reliable and IBM hardware runs stay
-                                meaningful instead of theatrical noise.
-                            </div>
-                            <div className="prs-warning">
-                                For a 5-node p=2 QAOA circuit on IBM Marrakesh,
-                                704 two-qubit gates at a 0.0037 error rate imply
-                                roughly 7.3% success before readout error. That
-                                is why decomposition matters.
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* 13 */}
-                    <section
-                        className="prs-slide prs-lr"
-                        data-label="13 Warm Start"
-                        data-zoom="topology-benchmarks"
-                    >
-                        <div className="prs-txt" style={{ maxWidth: 620 }}>
-                            <div className="prs-ey">Parameter Transfer</div>
-                            <div className="prs-hd">
-                                Reuse the angles.
-                                <br />
-                                <em>Save the run.</em>
-                            </div>
-                            <div className="prs-hr" />
-                            <div className="prs-bd">
-                                Warm-start experiments test whether optimized
-                                QAOA parameters can transfer across similar
-                                sub-instances. At 25 qubits, direct transfer
-                                improved several cold-start failures with
-                                effectively zero extra optimization cost.
-                            </div>
-                            <div className="prs-equation">
-                                θ = (γ₁, β₁, γ₂, β₂)
-                                <small>
-                                    source angles become the target's launchpad
-                                </small>
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* 14 */}
-                    <section
-                        className="prs-slide prs-ll"
-                        data-label="14 System Topology"
-                    >
-                        <div className="prs-app-panel">
-                            <div className="prs-ey">
-                                From Algorithm To Asphalt
-                            </div>
-                            <div className="prs-hd">
-                                VRPFR.
-                                <br />
-                                <em>End-to-end.</em>
-                            </div>
-                            <div className="prs-hr" />
-                            <div className="prs-bd" style={{ maxWidth: 520 }}>
-                                The report is not just math. It ships the solver
-                                into a Laravel orchestration layer, React
-                                dispatcher dashboard, and Flutter driver app
-                                with assignment lifecycle, GPS telemetry, and
-                                proof-of-delivery state.
-                            </div>
-                            <div className="prs-system">
-                                <div className="prs-system-card">
-                                    <div className="prs-system-top">
-                                        01 Backend
-                                    </div>
-                                    <div className="prs-system-title">
-                                        Laravel
-                                    </div>
-                                    <div className="prs-system-copy">
-                                        Queues long quantum jobs, stores
-                                        optimization histories, protects access
-                                        with Sanctum, RBAC, and WebAuthn.
-                                    </div>
-                                </div>
-                                <div className="prs-system-card">
-                                    <div className="prs-system-top">
-                                        02 Command
-                                    </div>
-                                    <div className="prs-system-title">
-                                        React
-                                    </div>
-                                    <div className="prs-system-copy">
-                                        Inertia dashboard renders routes, fleet
-                                        status, telemetry, and dispatcher
-                                        controls without redundant API ceremony.
-                                    </div>
-                                </div>
-                                <div className="prs-system-card">
-                                    <div className="prs-system-top">
-                                        03 Edge
-                                    </div>
-                                    <div className="prs-system-title">
-                                        Flutter
-                                    </div>
-                                    <div className="prs-system-copy">
-                                        Driver app receives scoped assignments,
-                                        tracks GPS, and uploads delivery proof
-                                        with stop-level lifecycle state.
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* 15 energy chart */}
-                    <section className="prs-slide" data-label="15 Validation">
-                        <div className="prs-echart-wrap">
-                            <div style={{ textAlign: 'center' }}>
-                                <div
-                                    className="prs-ey"
-                                    style={{ textAlign: 'center' }}
-                                >
-                                    Testing Matrix
-                                </div>
-                                <div
-                                    className="prs-hd"
-                                    style={{
-                                        textAlign: 'center',
-                                        fontSize: '52px',
-                                    }}
-                                >
-                                    Energy, routes,
-                                    <br />
-                                    <em>and real users.</em>
-                                </div>
-                            </div>
-                            <canvas ref={echRef} id="prs-eChart" />
-                            <div className="prs-bench">
-                                <div className="prs-bench-card">
-                                    <div className="prs-bench-value">1,728</div>
-                                    <div className="prs-bench-label">
-                                        Circuits
-                                    </div>
-                                    <div className="prs-bench-copy">
-                                        optimizer, p, penalty, k, maxiter,
-                                        restarts
-                                    </div>
-                                </div>
-                                <div className="prs-bench-card">
-                                    <div className="prs-bench-value">0%</div>
-                                    <div className="prs-bench-label">
-                                        COBYLA p=2
-                                    </div>
-                                    <div className="prs-bench-copy">
-                                        observed failure rate in the selected
-                                        layer setting
-                                    </div>
-                                </div>
-                                <div className="prs-bench-card">
-                                    <div className="prs-bench-value">60fps</div>
-                                    <div className="prs-bench-label">
-                                        Dashboard
-                                    </div>
-                                    <div className="prs-bench-copy">
-                                        rendering stress test with 1,000-node
-                                        payloads
-                                    </div>
-                                </div>
-                                <div className="prs-bench-card">
-                                    <div className="prs-bench-value">RBAC</div>
-                                    <div className="prs-bench-label">
-                                        Security
-                                    </div>
-                                    <div className="prs-bench-copy">
-                                        dispatcher and driver permissions
-                                        verified
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* 16 results */}
-                    <section
-                        className="prs-slide prs-lc"
-                        data-label="16 Results"
-                    >
-                        <div className="prs-txt">
-                            <div
-                                className="prs-ey"
-                                style={{ marginBottom: 38 }}
-                            >
-                                Best Combined Objective
-                            </div>
-                            <div className="prs-sgrid">
-                                <div>
-                                    <div className="prs-sv" id="prs-sGap">
-                                        0.0
-                                        <sup style={{ fontSize: '.42em' }}>
-                                            %
-                                        </sup>
-                                    </div>
-                                    <div className="prs-sl">
-                                        Gap at 1,000 nodes
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="prs-sv" id="prs-sFair">
-                                        6,441
-                                    </div>
-                                    <div className="prs-sl">
-                                        Weighted Fairness
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="prs-sv" id="prs-sScale">
-                                        1,000
-                                    </div>
-                                    <div className="prs-sl">
-                                        Nodes, 45 vehicles
-                                    </div>
-                                </div>
-                            </div>
-                            <div
-                                className="prs-bd"
-                                style={{
-                                    textAlign: 'center',
-                                    marginTop: 32,
-                                    maxWidth: 620,
-                                }}
-                            >
-                                Recursive QAOA + 2-opt ranked first on the
-                                combined cost-fairness objective at 50, 100,
-                                200, and 1,000 nodes.
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* 17 */}
-                    <section
-                        className="prs-slide prs-lr"
-                        data-label="17 IBM Quantum"
-                    >
-                        <div className="prs-txt" style={{ maxWidth: 620 }}>
-                            <div className="prs-ey">
-                                Physical Hardware Proof
-                            </div>
-                            <div className="prs-hd">
-                                The cloud QPU
-                                <br />
-                                <em>actually ran.</em>
-                            </div>
-                            <div className="prs-hr" />
-                            <div className="prs-bd">
-                                A k=3 subset ran through IBM Quantum. It took
-                                about 2.5 hours wall-clock, returned valid
-                                subtour-free routes, and beat classical
-                                baselines on operational equity.
-                            </div>
-                            <div
-                                className="prs-bench"
-                                style={{ width: 'min(720px,82vw)' }}
-                            >
-                                <div className="prs-bench-card">
-                                    <div className="prs-bench-value">3,493</div>
-                                    <div className="prs-bench-label">
-                                        Fairness
-                                    </div>
-                                    <div className="prs-bench-copy">
-                                        Recursive QAOA + 2-opt on IBM Quantum
-                                    </div>
-                                </div>
-                                <div className="prs-bench-card">
-                                    <div className="prs-bench-value">5.6%</div>
-                                    <div className="prs-bench-label">
-                                        Advantage
-                                    </div>
-                                    <div className="prs-bench-copy">
-                                        over OR-Tools fairness score on the same
-                                        subset
-                                    </div>
-                                </div>
-                                <div className="prs-bench-card">
-                                    <div className="prs-bench-value">2.5h</div>
-                                    <div className="prs-bench-label">
-                                        Wall Time
-                                    </div>
-                                    <div className="prs-bench-copy">
-                                        queueing, transpilation, and execution
-                                        reality included
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* 18 */}
-                    <section
-                        className="prs-slide prs-lb"
-                        data-label="18 Future Work"
-                    >
-                        <div className="prs-txt" style={{ paddingBottom: 100 }}>
-                            <div className="prs-ey">Future Work</div>
-                            <div className="prs-hd">
-                                Make the leaves bigger.
-                                <br />
-                                Make the quantum
-                                <br />
-                                <em>less fragile.</em>
-                            </div>
-                            <div className="prs-hr" />
-                            <div className="prs-bd">
-                                The next leap is hardware-aware compilation,
-                                noise mitigation, richer constraints like
-                                capacity and time windows, and comparative
-                                quantum primitives such as VQE, quantum
-                                annealing, and quantum walks inside the same
-                                recursive framework.
-                            </div>
-                            <div
-                                className="prs-kicker-row"
-                                style={{ justifyContent: 'center' }}
-                            >
-                                <div className="prs-pill">noise mitigation</div>
-                                <div className="prs-pill">capacity QUBO</div>
-                                <div className="prs-pill">time windows</div>
-                                <div className="prs-pill">larger leaves</div>
-                            </div>
-                        </div>
-                    </section>
-                </div>
-
-                <nav id="prs-nav">
-                    <button
-                        className="prs-nb"
-                        onClick={() => goTo(curRef.current - 1)}
-                    >
-                        ←
-                    </button>
-                    <span id="prs-ctr">
-                        01 / {N_SLIDES.toString().padStart(2, '0')}
-                    </span>
-                    <button
-                        className="prs-nb"
-                        onClick={() => goTo(curRef.current + 1)}
-                    >
-                        →
-                    </button>
-                </nav>
-            </div>
-        </>
-    );
+import { AnimatePresence, motion } from 'framer-motion'
+import {
+  Brain, ChevronRight,
+  Cpu, Globe2, Layers, Network,
+  Smartphone, Zap, Server, Atom,
+} from 'lucide-react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import type { MapRef } from 'react-map-gl/mapbox'
+import Map, { Layer, Source } from 'react-map-gl/mapbox'
+import 'mapbox-gl/dist/mapbox-gl.css'
+import QAOAVisualization from '@/components/qaoa-visualization'
+
+/* ─────────────────────────────────────────── types */
+interface Props { mapboxToken?: string | null }
+
+const TOTAL = 20
+
+/* ─────────────────────────────────────────── seeded rng */
+function seeded(s: number) {
+  let n = s
+
+  return () => {
+    n = (n * 16807) % 2147483647
+
+    return (n - 1) / 2147483646
+  }
 }
 
-// bypass app layout — presentation is full-screen
-Presentation.layout = () => null;
+/* ─────────────────────────────────────────── artur nogueira geo */
+const DEPOT_LON = -47.172, DEPOT_LAT = -22.570
+
+/* ─────────────────────────────────────────── cached solve result type */
+type CachedRoute = {
+  route_index: number
+  color: string
+  node_ids: number[]
+  raw_distance: number | null
+  geometry: { type: 'LineString'; coordinates: [number, number][] }
+}
+
+type CachedResult = {
+  instance: string
+  k: number
+  algorithm: string
+  summary: {
+    num_routes: number
+    total_distance: number
+    distance_std: number
+    weighted_fairness: number | null
+  }
+  nodes: { id: number; lat: number; lng: number; is_depot: boolean }[]
+  routes: CachedRoute[]
+  bbox: { south: number; north: number; east: number; west: number }
+}
+
+function resultToGeoJSON(result: CachedResult): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: result.routes.map((r) => ({
+      type: 'Feature' as const,
+      properties: { color: r.color },
+      geometry: r.geometry,
+    })),
+  }
+}
+
+function nodesToGeoJSON(result: CachedResult): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: result.nodes
+      .filter((n) => !n.is_depot)
+      .map((n) => ({
+        type: 'Feature' as const,
+        properties: {},
+        geometry: { type: 'Point' as const, coordinates: [n.lng, n.lat] as [number, number] },
+      })),
+  }
+}
+
+function loadCachedResults(): { tabu: CachedResult | null; qaoa: CachedResult | null } {
+  let tabu: CachedResult | null = null
+  let qaoa: CachedResult | null = null
+
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+
+      if (!key?.startsWith('vrp:')) {
+        continue
+      }
+
+      const raw = localStorage.getItem(key)
+
+      if (!raw) {
+        continue
+      }
+
+      const r = JSON.parse(raw) as CachedResult
+
+      if (!tabu && r.algorithm.includes('tabu')) {
+        tabu = r
+      }
+
+      if (!qaoa && r.algorithm.includes('qaoa')) {
+        qaoa = r
+      }
+
+      if (tabu && qaoa) {
+        break
+      }
+    }
+  } catch { /* localStorage unavailable */ }
+
+  return { tabu, qaoa }
+}
+
+/* ─────────────────────────────────────────── css injection */
+function InjectStyles() {
+  return (
+    <style>{`
+      @keyframes shimmer {
+        from { background-position: -200% center; }
+        to   { background-position:  200% center; }
+      }
+      @keyframes float-slow {
+        0%,100% { transform: translateY(0px); }
+        50%     { transform: translateY(-10px); }
+      }
+      @keyframes vx-radar {
+        from { transform: rotate(0deg); }
+        to   { transform: rotate(360deg); }
+      }
+      @keyframes counter-up {
+        from { opacity: 0; transform: translateY(12px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      .anim-shimmer     { animation: shimmer 3.5s linear infinite; background-size: 200% auto; }
+      .anim-float       { animation: float-slow 6s ease-in-out infinite; }
+      .anim-radar       { animation: vx-radar 8s linear infinite; }
+      .mapboxgl-map     { border-radius: 12px; }
+      .mapboxgl-ctrl-logo { display: none !important; }
+      .mapboxgl-ctrl-attrib { display: none !important; }
+      * { cursor: none !important; }
+    `}</style>
+  )
+}
+
+/* ─────────────────────────────────────────── cursor */
+function CursorDot() {
+  const [pos, setPos] = useState({ x: -20, y: -20 })
+  const [visible, setVisible] = useState(true)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => {
+      setPos({ x: e.clientX, y: e.clientY })
+      setVisible(true)
+
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+      }
+
+      timerRef.current = setTimeout(() => setVisible(false), 3000)
+    }
+
+    window.addEventListener('mousemove', h)
+
+    return () => {
+      window.removeEventListener('mousemove', h)
+
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+      }
+    }
+  }, [])
+
+  return (
+    <div
+      className="fixed top-0 left-0 pointer-events-none z-[9999] rounded-full transition-opacity duration-500"
+      style={{
+        width: 7,
+        height: 7,
+        background: 'var(--primary)',
+        transform: `translate(${pos.x - 3.5}px, ${pos.y - 3.5}px)`,
+        opacity: visible ? 1 : 0,
+      }}
+    />
+  )
+}
+
+/* ─────────────────────────────────────────── root */
+export default function Presentation({ mapboxToken }: Props) {
+  const [cur, setCur] = useState(0)
+
+  const go = useCallback((n: number) => {
+    if (n < 0 || n >= TOTAL) {
+      return
+    }
+
+    setCur(n)
+  }, [])
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') {
+        go(cur + 1)
+      }
+
+      if (e.key === 'ArrowLeft') {
+        go(cur - 1)
+      }
+    }
+
+    window.addEventListener('keydown', h)
+
+    return () => window.removeEventListener('keydown', h)
+  }, [cur, go])
+
+  const token = mapboxToken ?? ''
+
+  return (
+    <div className="fixed inset-0 overflow-hidden bg-background text-foreground select-none font-sans">
+      <InjectStyles />
+      <CursorDot />
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={cur}
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -14 }}
+          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+          className="absolute inset-0 flex items-center justify-center"
+        >
+          {cur === 0  && <S00Preshow />}
+          {cur === 1  && <S01Title />}
+          {cur === 2  && <SSection idx={0} />}
+          {cur === 3  && <S02Explosion />}
+          {cur === 4  && <S03Flaw />}
+          {cur === 5  && <SSection idx={1} />}
+          {cur === 6  && <S04Tunneling />}
+          {cur === 7  && <S05QAOAMath />}
+          {cur === 8  && <S06QUBO />}
+          {cur === 9  && <S07NISQ />}
+          {cur === 10 && <SSection idx={2} />}
+          {cur === 11 && <S08Globe token={token} />}
+          {cur === 12 && <S09Decomposition />}
+          {cur === 13 && <S10Execution />}
+          {cur === 14 && <S11Architecture />}
+          {cur === 15 && <SSection idx={3} />}
+          {cur === 16 && <S12Maps token={token} />}
+          {cur === 17 && <S13Benchmark />}
+          {cur === 18 && <S14Hardware />}
+          {cur === 19 && <S15FutureWork />}
+        </motion.div>
+      </AnimatePresence>
+      <Hud cur={cur} go={go} />
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────── hud */
+const SLIDE_LABELS = [
+  'Pre-Show', 'Title',
+  '— The Problem —', 'Combinatorial Explosion', 'Classical Flaw',
+  '— The Approach —', 'Quantum Tunneling', 'QAOA Mechanics', 'QUBO → Ising', 'NISQ Bottleneck',
+  '— The System —', 'The Dataset', 'K-Means Decomposition', 'Quantum Execution', 'System Architecture',
+  '— The Results —', '200-Node Visual Proof', 'Benchmark Results', 'Hardware Validation', 'Future Work',
+]
+
+const SECTIONS = [
+  { label: '',            start: 0,  end: 1  },
+  { label: 'The Problem', start: 2,  end: 4  },
+  { label: 'The Approach', start: 5, end: 9  },
+  { label: 'The System',  start: 10, end: 14 },
+  { label: 'The Results', start: 15, end: 19 },
+]
+
+function getSectionFor(n: number) {
+  return SECTIONS.find((s) => n >= s.start && n <= s.end)
+}
+
+function Hud({ cur, go }: { cur: number; go: (n: number) => void }) {
+  const section = getSectionFor(cur)
+
+  return (
+    <>
+      <div className="fixed top-5 left-8 z-50">
+        {section?.label && (
+          <div className="text-[9px] uppercase tracking-[0.18em] font-mono mb-0.5" style={{ color: 'var(--primary)', opacity: 0.75 }}>
+            {section.label}
+          </div>
+        )}
+        <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-sans">
+          {SLIDE_LABELS[cur]}
+        </div>
+      </div>
+      <div className="fixed top-5 right-8 text-xs font-mono tabular-nums text-muted-foreground z-50">
+        {String(cur + 1).padStart(2, '0')} / {String(TOTAL).padStart(2, '0')}
+      </div>
+      <div className="fixed bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-3 z-50">
+        {SECTIONS.map((sec, si) => (
+          <div key={si} className="flex items-center gap-1">
+            {Array.from({ length: sec.end - sec.start + 1 }, (_, di) => {
+              const idx = sec.start + di
+
+              return (
+                <button
+                  key={idx}
+                  onClick={() => go(idx)}
+                  className="transition-all duration-300 rounded-full"
+                  style={{
+                    width: idx === cur ? 22 : 4,
+                    height: 3,
+                    background: idx === cur
+                      ? 'var(--primary)'
+                      : getSectionFor(idx) === section
+                        ? 'rgba(255,255,255,0.35)'
+                        : 'rgba(255,255,255,0.12)',
+                  }}
+                />
+              )
+            })}
+          </div>
+        ))}
+      </div>
+      <div className="fixed bottom-4 right-8 text-[10px] font-mono text-muted-foreground z-50">← →</div>
+    </>
+  )
+}
+
+/* ─────────────────────────────────────────── shared primitives */
+function Ey({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="text-[10px] font-sans uppercase tracking-[0.22em] text-primary mb-4">
+      {children}
+    </div>
+  )
+}
+
+function H({ children, size = 'lg' }: { children: React.ReactNode; size?: 'xl' | 'lg' | 'sm' }) {
+  const fs = {
+    xl: 'clamp(3.5rem,10vw,8rem)',
+    lg: 'clamp(2rem,5vw,4rem)',
+    sm: 'clamp(1.4rem,3vw,2.2rem)',
+  }[size]
+
+  return (
+    <h2
+      className="font-serif italic font-light leading-[1.06] tracking-[-0.03em] text-foreground"
+      style={{ fontSize: fs }}
+    >
+      {children}
+    </h2>
+  )
+}
+
+function P({ children }: { children: React.ReactNode }) {
+  return <p className="text-base leading-relaxed text-muted-foreground mt-5 max-w-[54ch]">{children}</p>
+}
+
+function Hr() {
+  return <div className="my-6 h-px w-10 bg-border" />
+}
+
+function Badge({ children, v = 'primary' }: { children: React.ReactNode; v?: 'primary' | 'muted' | 'destructive' }) {
+  const col =
+    v === 'primary' ? 'var(--primary)'
+    : v === 'destructive' ? 'var(--destructive)'
+    : 'var(--muted-foreground)'
+
+  return (
+    <span
+      className="inline-block px-2.5 py-0.5 text-[10px] uppercase tracking-widest rounded-sm font-sans"
+      style={{
+        background: `color-mix(in oklch, ${col} 15%, transparent)`,
+        color: col,
+        border: `1px solid color-mix(in oklch, ${col} 30%, transparent)`,
+      }}
+    >
+      {children}
+    </span>
+  )
+}
+
+function Card({ children, className = '', glow, style }: {
+  children: React.ReactNode
+  className?: string
+  glow?: boolean
+  style?: React.CSSProperties
+}) {
+  const glowStyle: React.CSSProperties = glow
+    ? { boxShadow: '0 0 0 1px oklch(0.72 0.18 35 / 0.3), 0 4px 40px oklch(0.72 0.18 35 / 0.12)' }
+    : {}
+
+  return (
+    <div
+      className={`bg-card text-foreground rounded-xl border border-border py-6 shadow-sm ${className}`}
+      style={{ ...glowStyle, ...style }}
+    >
+      {children}
+    </div>
+  )
+}
+
+function Center({ children }: { children: React.ReactNode }) {
+  return <div className="flex flex-col items-center text-center px-10 max-w-5xl w-full">{children}</div>
+}
+
+function Split({ L, R }: { L: React.ReactNode; R: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-2 gap-14 max-w-6xl w-full px-14 items-center">
+      <div>{L}</div>
+      <div>{R}</div>
+    </div>
+  )
+}
+
+function MathBlock({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      className="bg-card border border-border rounded-xl px-6 py-5 font-mono text-sm leading-loose overflow-x-auto"
+      style={{ fontFamily: 'var(--font-mono)' }}
+    >
+      {children}
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────── section dividers */
+const SECTION_DATA = [
+  {
+    roman: 'I',
+    title: 'The Problem',
+    tagline: 'Classical routing optimises distance. It does not care who drives fourteen hours.',
+    topics: ['Combinatorial Explosion', 'Distance-Only Metrics', 'The Fairness Deficit'],
+  },
+  {
+    roman: 'II',
+    title: 'The Approach',
+    tagline: 'Quantum superposition evaluates exponentially many routes simultaneously.',
+    topics: ['Quantum Tunneling', 'QAOA Variational Circuit', 'QUBO Formulation', 'NISQ Hardware Limits'],
+  },
+  {
+    roman: 'III',
+    title: 'The System',
+    tagline: 'A real city. Real streets. A full-stack dispatch platform built around the solver.',
+    topics: ['Artur Nogueira · São Paulo', 'Angular K-Means Partition', 'Recursive Execution Pipeline', 'Laravel + React + Flutter'],
+  },
+  {
+    roman: 'IV',
+    title: 'The Results',
+    tagline: 'Seven algorithms. One city. IBM ibm_fez quantum hardware. The numbers speak.',
+    topics: ['OSMnx Route Visualisation', 'Benchmark Table · Φ Metric', 'IBM ibm_fez Validation', 'Parameter Transferability'],
+  },
+] as const
+
+function SSection({ idx }: { idx: number }) {
+  const { roman, title, tagline, topics } = SECTION_DATA[idx]
+
+  return (
+    <div className="relative flex items-center justify-center w-full h-full overflow-hidden">
+      {/* giant background numeral */}
+      <div
+        className="absolute font-serif italic pointer-events-none select-none"
+        style={{
+          fontSize: 'clamp(18rem, 38vw, 34rem)',
+          lineHeight: 1,
+          color: 'oklch(0.72 0.18 35 / 0.045)',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-44%, -52%)',
+          letterSpacing: '-0.06em',
+        }}
+      >
+        {roman}
+      </div>
+
+      {/* horizontal rule top */}
+      <div className="absolute top-0 left-0 right-0 h-px bg-border opacity-40" />
+
+      <div className="relative text-center max-w-[640px] px-10">
+        <motion.div
+          initial={{ opacity: 0, y: 22 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <div className="font-mono text-[10px] uppercase tracking-[0.32em] mb-5" style={{ color: 'var(--primary)' }}>
+            Part {roman}
+          </div>
+          <h2
+            className="font-serif italic font-light leading-none tracking-[-0.04em] text-foreground"
+            style={{ fontSize: 'clamp(3.8rem, 8.5vw, 6.5rem)' }}
+          >
+            {title}
+          </h2>
+          <div className="h-px w-16 mx-auto my-7 bg-border" />
+          <p className="text-sm leading-relaxed text-muted-foreground max-w-[46ch] mx-auto">
+            {tagline}
+          </p>
+          <div className="mt-9 flex flex-wrap justify-center gap-2">
+            {topics.map((topic) => (
+              <span
+                key={topic}
+                className="text-[10px] font-mono uppercase tracking-wider border border-border text-muted-foreground px-3 py-1.5 rounded"
+              >
+                {topic}
+              </span>
+            ))}
+          </div>
+        </motion.div>
+      </div>
+
+      {/* horizontal rule bottom */}
+      <div className="absolute bottom-0 left-0 right-0 h-px bg-border opacity-40" />
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────── slide 0 — pre-show */
+function S00Preshow() {
+  return (
+    <div className="relative flex items-center justify-center w-full h-full">
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        {[260, 420, 580, 760].map((r, i) => (
+          <div
+            key={i}
+            className="absolute rounded-full border border-border"
+            style={{ width: r, height: r, opacity: 0.3 - i * 0.06 }}
+          />
+        ))}
+        <div className="absolute w-[600px] h-[600px] rounded-full overflow-hidden opacity-[0.15]">
+          <div
+            className="absolute inset-0 anim-radar"
+            style={{
+              background: 'conic-gradient(from 0deg, transparent 0deg, oklch(0.72 0.18 35 / 0.8) 55deg, transparent 55deg)',
+            }}
+          />
+        </div>
+      </div>
+      <div className="relative text-center">
+        <div className="mb-6 flex justify-center gap-3">
+          <Badge v="primary">Ready</Badge>
+          <Badge v="muted">Vectora · VRPFR</Badge>
+        </div>
+        <div
+          className="anim-shimmer anim-float font-serif italic font-light"
+          style={{
+            fontSize: 'clamp(2.6rem,7vw,5.5rem)',
+            background: 'linear-gradient(90deg, var(--primary) 0%, var(--foreground) 45%, var(--primary) 100%)',
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            color: 'transparent',
+            WebkitTextFillColor: 'transparent',
+          }}
+        >
+          Vectora: Quantum Logistics
+        </div>
+        <div className="mt-10 font-mono text-[10px] uppercase tracking-[0.35em] text-muted-foreground">
+          Press → or Space to begin
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────── slide 1 — title */
+function S01Title() {
+  return (
+    <Center>
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.7, delay: 0.05 }}
+      >
+        <div className="mb-8 flex flex-wrap justify-center gap-3">
+          <Badge>Computer Engineering</Badge>
+          <Badge v="muted">Thesis Defense · 2026</Badge>
+        </div>
+        <h1
+          className="font-serif italic font-light leading-[1.06] tracking-[-0.04em] text-foreground mb-8"
+          style={{ fontSize: 'clamp(1.8rem,3.8vw,3.2rem)' }}
+        >
+          Design and Implementation of Optimal<br />
+          Delivery Routes Using{' '}
+          <span style={{ color: 'var(--primary)' }}>Quantum Optimization</span>
+          <br />Algorithms
+        </h1>
+        <div className="h-px w-28 mx-auto bg-border my-8" />
+        <div className="font-sans text-muted-foreground text-sm">
+          Leen Almousa &nbsp;·&nbsp; Abdulrahman Al-Essa &nbsp;·&nbsp; Malak Alshawish
+        </div>
+        <div className="mt-2 font-mono text-[10px] text-muted-foreground tracking-widest uppercase">
+          Artur Nogueira Benchmark · IBM Quantum · React + Laravel + Flutter
+        </div>
+      </motion.div>
+    </Center>
+  )
+}
+
+/* ─────────────────────────────────────────── slide 2 — explosion */
+function ExpCounter() {
+  const [exp, setExp] = useState(0)
+
+  useEffect(() => {
+    const dur = 2400
+    const t0 = performance.now()
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - t0) / dur)
+      setExp(Math.floor((1 - Math.pow(1 - p, 3)) * 165))
+
+      if (p < 1) {
+requestAnimationFrame(tick)
+}
+    }
+    const id = requestAnimationFrame(tick)
+
+    return () => cancelAnimationFrame(id)
+  }, [])
+
+  return (
+    <div className="text-center my-4">
+      <span className="font-serif italic font-light text-foreground" style={{ fontSize: 'clamp(4rem,11vw,8rem)', lineHeight: 1 }}>
+        10
+      </span>
+      <sup
+        className="font-mono tabular-nums"
+        style={{ fontSize: 'clamp(2rem,5vw,4rem)', color: 'var(--primary)', verticalAlign: 'super' }}
+      >
+        {exp}
+      </sup>
+    </div>
+  )
+}
+
+function S02Explosion() {
+  return (
+    <Split
+      L={
+        <div>
+          <Ey>NP-Hard Combinatorics</Ey>
+          <H size="lg">The Vehicle Routing Problem.</H>
+          <Hr />
+          <ExpCounter />
+          <div className="text-xs font-mono text-muted-foreground mb-4">possible assignments · 10 vehicles · 100 customers</div>
+          <P>
+            Exact classical solvers exhaust time and memory before approaching real-world scale.
+            Heuristics sacrifice accuracy for speed. Neither is acceptable for safety-critical logistics.
+          </P>
+        </div>
+      }
+      R={
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            { icon: <Zap size={18} />, label: '10¹⁵ ops/sec', sub: 'fastest classical computer' },
+            { icon: <Brain size={18} />, label: '10¹⁵⁰ years', sub: 'brute-force · 200 nodes' },
+            { icon: <Network size={18} />, label: 'NP-Hard', sub: 'no polynomial algorithm known' },
+            { icon: <Cpu size={18} />, label: 'Heuristics', sub: 'fast — but sacrifice optimality' },
+          ].map(({ icon, label, sub }) => (
+            <Card key={label} className="px-4 py-5">
+              <div style={{ color: 'var(--primary)' }} className="mb-2">{icon}</div>
+              <div className="text-sm font-medium text-foreground">{label}</div>
+              <div className="mt-0.5 text-[10px] text-muted-foreground">{sub}</div>
+            </Card>
+          ))}
+        </div>
+      }
+    />
+  )
+}
+
+/* ─────────────────────────────────────────── slide 3 — classical flaw */
+function S03Flaw() {
+  return (
+    <div className="grid grid-cols-2 gap-0 max-w-6xl w-full min-h-[72vh]">
+      <motion.div
+        className="flex flex-col justify-center px-14 border-r border-border"
+        initial={{ opacity: 0, x: -16 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.55 }}
+      >
+        <Badge v="muted">Classical Approach</Badge>
+        <div className="mt-5 text-2xl font-light text-foreground">Pure Distance Optimisation</div>
+        <div className="mt-6 px-5 py-4 bg-card border border-border rounded-xl font-mono text-lg">
+          min <span style={{ color: 'var(--chart-3)' }}>Σ d(i,j)</span>
+        </div>
+        <P>
+          Minimises total kilometres driven. Ignores workload distribution across the fleet.
+          One driver runs 14 hours; others clock out at noon.
+          Gas saved, labour law violated.
+        </P>
+        <div className="mt-6 space-y-2.5">
+          {['Driver overload undetected', 'Fleet systematically underutilised', 'No fairness invariant'].map((x) => (
+            <div key={x} className="flex items-center gap-3 text-sm text-muted-foreground">
+              <span style={{ color: 'var(--destructive)' }}>✕</span> {x}
+            </div>
+          ))}
+        </div>
+      </motion.div>
+
+      <motion.div
+        className="flex flex-col justify-center px-14"
+        initial={{ opacity: 0, x: 16 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.55, delay: 0.12 }}
+      >
+        <Badge>Our Metric</Badge>
+        <div className="mt-5 text-2xl font-light text-foreground">Cost + Fairness</div>
+        <div
+          className="mt-6 px-5 py-4 bg-card rounded-xl font-mono text-xl leading-relaxed"
+          style={{ border: '1px solid color-mix(in oklch, var(--primary) 35%, transparent)' }}
+        >
+          <span style={{ color: 'var(--primary)' }}>Φ</span>
+          {' = 0.5 · '}
+          <span style={{ color: 'var(--chart-2)' }}>(D/k)</span>
+          {' + 0.5 · '}
+          <span style={{ color: 'var(--chart-4)' }}>σ</span>
+        </div>
+        <div className="mt-3 font-mono text-xs space-y-1 text-muted-foreground">
+          <div><span style={{ color: 'var(--chart-2)' }}>D/k</span> → average route length per vehicle</div>
+          <div><span style={{ color: 'var(--chart-4)' }}>σ</span> → standard deviation of workloads</div>
+        </div>
+        <div className="mt-6 space-y-2.5">
+          {['Balanced driver workload enforced', 'Full fleet capacity utilised', 'Measurable, minimisable fairness'].map((x) => (
+            <div key={x} className="flex items-center gap-3 text-sm text-muted-foreground">
+              <span style={{ color: 'var(--chart-2)' }}>✓</span> {x}
+            </div>
+          ))}
+        </div>
+      </motion.div>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────── slide 4 — tunneling */
+function S04Tunneling() {
+  const landscape = 'M 0 80 C 12 80, 18 45, 28 58 C 38 72, 43 70, 48 74 C 53 78, 56 72, 62 55 C 68 37, 74 18, 80 16 C 86 14, 92 22, 100 20'
+
+  return (
+    <Split
+      L={
+        <div>
+          <Ey>Why Quantum</Ey>
+          <H size="lg">Tunnelling escapes the local trap.</H>
+          <Hr />
+          <P>
+            Classical hill-descent gets permanently stuck in local minima. Quantum superposition evaluates
+            the entire energy landscape simultaneously; interference amplifies paths toward the global minimum.
+          </P>
+          <div className="mt-8 grid grid-cols-2 gap-3">
+            {[
+              { t: 'Superposition', d: 'All routes evaluated simultaneously' },
+              { t: 'Entanglement', d: 'Constraints encoded as qubit correlations' },
+              { t: 'Interference', d: 'Poor routes cancel; good routes reinforce' },
+              { t: 'Tunnelling', d: 'Barrier penetration · no gradient required' },
+            ].map(({ t, d }) => (
+              <Card key={t} className="px-4 py-4">
+                <div className="text-xs font-medium" style={{ color: 'var(--primary)' }}>{t}</div>
+                <div className="mt-1 text-[11px] text-muted-foreground">{d}</div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      }
+      R={
+        <svg viewBox="0 0 100 100" className="w-full" style={{ maxHeight: 300 }}>
+          <text x="3" y="14" fontSize="5" fill="var(--muted-foreground)" fontFamily="JetBrains Mono">E</text>
+          <text x="50" y="98" fontSize="4.5" fill="var(--muted-foreground)" fontFamily="JetBrains Mono" textAnchor="middle">solution space</text>
+          <path d={landscape} fill="none" stroke="var(--border)" strokeWidth="1.4" />
+          <circle cx="28" cy="58" r="2.8" fill="var(--destructive)" />
+          <text x="28" y="68" fontSize="4.5" fill="var(--destructive)" textAnchor="middle" fontFamily="JetBrains Mono">local min</text>
+          <circle cx="80" cy="16" r="2.8" fill="var(--chart-2)" />
+          <text x="80" y="11" fontSize="4.5" fill="var(--chart-2)" textAnchor="middle" fontFamily="JetBrains Mono">global min</text>
+          <motion.circle
+            cx="28" cy="58" r="3.5"
+            fill="none" stroke="var(--muted-foreground)" strokeWidth="0.8"
+            animate={{ cy: [58, 54, 58] }}
+            transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+          />
+          <motion.path
+            d="M 28 58 Q 54 28 80 16"
+            fill="none" stroke="var(--primary)" strokeWidth="1.2" strokeDasharray="3 2"
+            initial={{ pathLength: 0 }}
+            animate={{ pathLength: 1 }}
+            transition={{ duration: 2, delay: 0.3, ease: 'easeInOut' }}
+          />
+          <text x="53" y="33" fontSize="4.2" fill="var(--primary)" textAnchor="middle" fontFamily="JetBrains Mono">quantum</text>
+          <text x="53" y="38" fontSize="4.2" fill="var(--primary)" textAnchor="middle" fontFamily="JetBrains Mono">tunnelling</text>
+        </svg>
+      }
+    />
+  )
+}
+
+/* ─────────────────────────────────────────── slide 5 — qaoa math */
+function S05QAOAMath() {
+  return (
+    <Split
+      L={
+        <div>
+          <Ey>QAOA Mechanics</Ey>
+          <H size="lg">Two Hamiltonians. One objective.</H>
+          <Hr />
+          <P>
+            We encode routing constraints into an Ising Hamiltonian and alternate H<sub>C</sub> and H<sub>M</sub>,
+            evolving the quantum state toward the optimal ground state via variational parameters γ and β.
+          </P>
+          <P>
+            COBYLA classically optimises γ and β at each layer depth p. Higher p = better quality,
+            higher gate count, more decoherence.
+          </P>
+        </div>
+      }
+      R={
+        <div className="space-y-5">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground mb-2" style={{ fontFamily: 'var(--font-mono)' }}>
+              Cost Hamiltonian
+            </div>
+            <MathBlock>
+              <span style={{ color: 'var(--primary)' }}>H<sub>C</sub></span>
+              {' = '}
+              <span style={{ color: 'var(--chart-2)' }}>Σ<sub>{'i,j'}</sub> J<sub>ij</sub> Z<sub>i</sub>Z<sub>j</sub></span>
+              {' + '}
+              <span style={{ color: 'var(--chart-3)' }}>Σ<sub>i</sub> h<sub>i</sub>Z<sub>i</sub></span>
+            </MathBlock>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground mb-2" style={{ fontFamily: 'var(--font-mono)' }}>
+              Mixer Hamiltonian
+            </div>
+            <MathBlock>
+              <span style={{ color: 'var(--chart-4)' }}>H<sub>M</sub></span>
+              {' = '}
+              <span style={{ color: 'var(--chart-5)' }}>Σ<sub>i</sub> X<sub>i</sub></span>
+            </MathBlock>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground mb-2" style={{ fontFamily: 'var(--font-mono)' }}>
+              State Evolution
+            </div>
+            <MathBlock>
+              <span style={{ color: 'var(--muted-foreground)' }}>|ψ(γ,β)⟩ = </span>
+              <span style={{ color: 'var(--chart-4)' }}>e<sup>−iβH<sub>M</sub></sup></span>
+              <span style={{ color: 'var(--muted-foreground)' }}> · </span>
+              <span style={{ color: 'var(--primary)' }}>e<sup>−iγH<sub>C</sub></sup></span>
+              <span style={{ color: 'var(--muted-foreground)' }}> |+⟩</span>
+              <sup><span style={{ color: 'var(--chart-2)' }}>⊗n</span></sup>
+            </MathBlock>
+          </div>
+        </div>
+      }
+    />
+  )
+}
+
+/* ─────────────────────────────────────────── slide 6 — qubo */
+function S06QUBO() {
+  return (
+    <Split
+      L={
+        <div>
+          <Ey>Mathematical Mapping</Ey>
+          <H size="lg">Binary variables → Pauli-Z spins.</H>
+          <Hr />
+          <P>
+            Quantum processors evaluate Pauli-Z spins (−1, +1). Our route binary variables are (0, 1).
+            We apply the substitution below, then scale H to prevent COBYLA divergence.
+          </P>
+          <div className="mt-6 space-y-3 text-sm text-muted-foreground">
+            {[
+              'QUBO diagonal → qubit bias (h_i)',
+              'Off-diagonal entries → coupling (J_ij)',
+              'Penalty terms enforce capacity + time-window constraints',
+              'Numerical conditioning prevents gradient vanishing',
+            ].map((x) => (
+              <div key={x} className="flex items-start gap-3">
+                <ChevronRight size={14} className="mt-0.5 shrink-0" style={{ color: 'var(--primary)' }} />
+                {x}
+              </div>
+            ))}
+          </div>
+        </div>
+      }
+      R={
+        <div className="space-y-5">
+          <MathBlock>
+            <div className="mb-4 text-[10px] uppercase tracking-widest text-muted-foreground">Variable substitution</div>
+            <span style={{ color: 'var(--chart-3)' }}>x</span>
+            {' = (1 − '}
+            <span style={{ color: 'var(--chart-4)' }}>Z</span>
+            {') / 2'}
+          </MathBlock>
+          <MathBlock>
+            <div className="mb-4 text-[10px] uppercase tracking-widest text-muted-foreground">Numerical conditioning</div>
+            <span style={{ color: 'var(--primary)' }}>H<sub>norm</sub></span>
+            {' = H / max(|c|)'}
+          </MathBlock>
+          <MathBlock>
+            <div className="mb-4 text-[10px] uppercase tracking-widest text-muted-foreground">QUBO objective</div>
+            {'min '}
+            <span style={{ color: 'var(--chart-3)' }}>x</span>
+            <sup>T</sup>
+            <span style={{ color: 'var(--primary)' }}>Q</span>
+            <span style={{ color: 'var(--chart-3)' }}>x</span>
+            {'  s.t.  '}
+            <span style={{ color: 'var(--chart-3)' }}>x</span>
+            {' ∈ {0,1}'}
+            <sup>n</sup>
+          </MathBlock>
+        </div>
+      }
+    />
+  )
+}
+
+/* ─────────────────────────────────────────── slide 7 — nisq */
+function S07NISQ() {
+  return (
+    <Center>
+      <Ey>Near-Term Quantum Hardware</Ey>
+      <motion.div
+        className="font-serif italic font-light leading-none tracking-[-0.05em] my-8"
+        style={{ fontSize: 'clamp(4rem,13vw,10rem)', color: 'var(--foreground)' }}
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.8, delay: 0.1 }}
+      >
+        The{' '}
+        <span style={{ color: 'var(--primary)' }}>29-Qubit</span>
+        <br />Wall
+      </motion.div>
+      <div className="h-px w-full max-w-md bg-border mb-8" />
+      <div className="grid grid-cols-3 gap-6 max-w-2xl mb-8">
+        {[
+          { v: '2ⁿ × 16 B', label: 'Statevector memory / qubit', c: 'var(--destructive)' },
+          { v: 'LEAF = 4', label: 'Our recursion threshold', c: 'var(--primary)' },
+          { v: '0.37%', label: 'ibm_fez 2Q gate error rate', c: 'var(--chart-3)' },
+        ].map(({ v, label, c }) => (
+          <div key={label} className="text-center">
+            <div className="font-mono text-2xl tabular-nums" style={{ color: c }}>{v}</div>
+            <div className="mt-1.5 text-xs text-muted-foreground">{label}</div>
+          </div>
+        ))}
+      </div>
+      <P>
+        Simulating &gt;5 nodes on local RAM causes OOM. Physical QPU gate noise destroys deep circuits.
+        Pure quantum cannot route a 1,000-node city in 2026. We decompose instead.
+      </P>
+    </Center>
+  )
+}
+
+/* ─────────────────────────────────────────── slide 8 — dataset */
+const RC_LON = -47.5601
+const RC_LAT = -22.4106
+
+const RC_GEOJSON_S8: GeoJSON.Feature = {
+  type: 'Feature',
+  properties: {},
+  geometry: { type: 'Point', coordinates: [RC_LON, RC_LAT] },
+}
+
+function S08Globe({ token }: { token: string }) {
+  return (
+    <Split
+      L={
+        <div>
+          <Ey>Rio Claro · São Paulo · Brazil</Ey>
+          <H size="lg">Real streets, not toy graphs.</H>
+          <Hr />
+          <P>
+            All benchmarks use actual street geometry from Rio Claro municipality,
+            extracted from OpenStreetMap and snapped to the road network via OSMnx.
+            Delivery nodes are sampled from real postal address clusters.
+          </P>
+          <div className="mt-8 grid grid-cols-2 gap-3">
+            {[
+              { k: 'Coordinates', v: '22.41°S · 47.56°W' },
+              { k: 'Source', v: 'OSM + OSMnx road snap' },
+              { k: 'Scales tested', v: '50 / 100 / 200 nodes' },
+              { k: 'Fleet sizes', v: '6 → 30 → 45 vehicles' },
+            ].map(({ k, v }) => (
+              <div key={k} className="bg-card border border-border rounded-lg px-4 py-3">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">{k}</div>
+                <div className="text-sm font-mono" style={{ color: 'var(--primary)' }}>{v}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      }
+      R={
+        <div
+          className="relative rounded-xl overflow-hidden w-full"
+          style={{ height: 380, boxShadow: '0 0 0 1px var(--border)' }}
+        >
+          {token ? (
+            <Map
+              mapboxAccessToken={token}
+              initialViewState={{ longitude: RC_LON, latitude: RC_LAT, zoom: 13 }}
+              mapStyle="mapbox://styles/mapbox/dark-v11"
+              attributionControl={false}
+              interactive={false}
+              style={{ width: '100%', height: '100%' }}
+            >
+              <Source id="depot-s8" type="geojson" data={RC_GEOJSON_S8}>
+                <Layer
+                  id="depot-s8-glow"
+                  type="circle"
+                  paint={{ 'circle-radius': 28, 'circle-color': 'oklch(0.72 0.18 35)', 'circle-opacity': 0.18, 'circle-blur': 1 }}
+                />
+                <Layer
+                  id="depot-s8-ring"
+                  type="circle"
+                  paint={{ 'circle-radius': 14, 'circle-color': 'oklch(0.72 0.18 35)', 'circle-opacity': 0.12, 'circle-stroke-width': 1.5, 'circle-stroke-color': 'oklch(0.72 0.18 35)', 'circle-stroke-opacity': 0.5 }}
+                />
+                <Layer
+                  id="depot-s8-dot"
+                  type="circle"
+                  paint={{ 'circle-radius': 6, 'circle-color': 'oklch(0.72 0.18 35)', 'circle-stroke-width': 2, 'circle-stroke-color': '#ffffff', 'circle-opacity': 1 }}
+                />
+              </Source>
+            </Map>
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-card text-muted-foreground text-sm">
+              Map requires Mapbox token
+            </div>
+          )}
+          <div className="absolute inset-0 pointer-events-none rounded-xl" style={{ boxShadow: 'inset 0 0 50px oklch(0.13 0.02 250 / 0.7)' }} />
+          <div className="absolute bottom-3 left-3 z-10">
+            <span className="font-mono text-[10px] px-2 py-1 rounded bg-background/70 backdrop-blur-sm text-muted-foreground">
+              22.4106°S · 47.5601°W · Rio Claro
+            </span>
+          </div>
+        </div>
+      }
+    />
+  )
+}
+
+/* ─────────────────────────────────────────── slide 9 — decomposition */
+const rng50s = seeded(13)
+const SCATTER50 = Array.from({ length: 50 }, () => ({
+  x: 18 + rng50s() * 364,
+  y: 14 + rng50s() * 272,
+}))
+
+const CLUSTER_CENTERS_SVG = [
+  { x: 90, y: 90 }, { x: 200, y: 75 }, { x: 320, y: 90 },
+  { x: 80, y: 210 }, { x: 205, y: 220 }, { x: 325, y: 205 },
+]
+
+const CLUSTER_COLOR_VARS = [
+  'oklch(0.72 0.18 35)', 'oklch(0.65 0.15 200)', 'oklch(0.75 0.12 80)',
+  'oklch(0.60 0.20 320)', 'oklch(0.55 0.18 180)', 'oklch(0.72 0.18 35)',
+]
+
+const ASSIGNED50 = SCATTER50.map((p) => {
+  let best = 0, bestD = Infinity
+
+  CLUSTER_CENTERS_SVG.forEach(({ x, y }, i) => {
+    const d = Math.hypot(p.x - x, p.y - y)
+
+    if (d < bestD) {
+      bestD = d
+      best = i
+    }
+  })
+
+  return best
+})
+
+const rngCp = seeded(31)
+
+const CLUSTER_POS50 = SCATTER50.map((_, i) => {
+  const c = CLUSTER_CENTERS_SVG[ASSIGNED50[i]]
+
+  return { x: c.x + (rngCp() - 0.5) * 55, y: c.y + (rngCp() - 0.5) * 42 }
+})
+
+function S09Decomposition() {
+  const [phase, setPhase] = useState<'scatter' | 'cluster'>('scatter')
+
+  useEffect(() => {
+    const t = setTimeout(() => setPhase('cluster'), 1400)
+
+    return () => clearTimeout(t)
+  }, [])
+
+  return (
+    <Split
+      L={
+        <div>
+          <Ey>Angular-Sweep K-Means</Ey>
+          <H size="lg">Scatter. Partition. Solve.</H>
+          <Hr />
+          <P>
+            200 nodes are partitioned into √n geographic clusters. Each sub-problem is guaranteed
+            ≤ 5 nodes — perfectly fitting our 29-qubit hardware limit. No qubit overhead, no noise amplification.
+          </P>
+          <div className="mt-8 space-y-3">
+            {CLUSTER_CENTERS_SVG.slice(0, 5).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 text-sm text-muted-foreground">
+                <span className="w-3 h-3 rounded-full shrink-0" style={{ background: CLUSTER_COLOR_VARS[i] }} />
+                Cluster {i + 1} — leaf QAOA sub-problem
+              </div>
+            ))}
+          </div>
+        </div>
+      }
+      R={
+        <svg viewBox="0 0 400 300" className="w-full max-w-sm mx-auto" style={{ aspectRatio: '4/3' }}>
+          {SCATTER50.map((p, i) => (
+            <motion.circle
+              key={i}
+              r={phase === 'cluster' ? 4 : 3.5}
+              animate={{
+                x: phase === 'cluster' ? CLUSTER_POS50[i].x - p.x : 0,
+                y: phase === 'cluster' ? CLUSTER_POS50[i].y - p.y : 0,
+                fill: phase === 'cluster' ? CLUSTER_COLOR_VARS[ASSIGNED50[i]] : 'var(--muted-foreground)',
+              } as { x: number; y: number; fill: string }}
+              transition={{ type: 'spring', stiffness: 90, damping: 18, delay: i * 0.012 }}
+              cx={p.x}
+              cy={p.y}
+              fill={phase === 'cluster' ? CLUSTER_COLOR_VARS[ASSIGNED50[i]] : 'var(--muted-foreground)'}
+            />
+          ))}
+          {phase === 'cluster' && CLUSTER_CENTERS_SVG.map(({ x, y }, i) => (
+            <motion.g key={i} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, delay: 0.3 }}>
+              <circle cx={x} cy={y} r="10" fill={CLUSTER_COLOR_VARS[i]} opacity="0.15" />
+              <circle cx={x} cy={y} r="5" fill={CLUSTER_COLOR_VARS[i]} opacity="0.7" />
+            </motion.g>
+          ))}
+        </svg>
+      }
+    />
+  )
+}
+
+/* ─────────────────────────────────────────── slide 10 — execution */
+function S10Execution() {
+  return <div className="absolute inset-0"><QAOAVisualization /></div>
+}
+
+/* ─────────────────────────────────────────── slide 11 — architecture */
+const STACK = [
+  {
+    icon: <Atom size={22} />,
+    label: 'Python / Qiskit',
+    role: 'Quantum Core',
+    detail: 'QAOA · QUBO · Aer simulator · ibm_fez execution · 900s+ async jobs',
+    c: 'var(--chart-3)',
+  },
+  {
+    icon: <Server size={22} />,
+    label: 'Laravel 13',
+    role: 'Queue Orchestrator',
+    detail: 'nohup worker · Sanctum · Fortify · Spatie RBAC · Inertia bridge',
+    c: 'var(--primary)',
+  },
+  {
+    icon: <Globe2 size={22} />,
+    label: 'React 19 + Inertia',
+    role: 'Dispatcher SPA',
+    detail: 'Mapbox route viz · Recharts analytics · Framer Motion · WebAuthn',
+    c: 'var(--chart-2)',
+  },
+  {
+    icon: <Smartphone size={22} />,
+    label: 'Flutter Mobile',
+    role: 'Driver Edge Node',
+    detail: 'Sanctum tokens · GPS heartbeat · Proof-of-delivery · Offline cache',
+    c: 'var(--chart-4)',
+  },
+]
+
+function S11Architecture() {
+  return (
+    <Center>
+      <Ey>Full-Stack Ecosystem</Ey>
+      <H>Four layers. One dispatch.</H>
+      <Hr />
+      <div className="mt-4 grid grid-cols-4 gap-4 w-full max-w-5xl">
+        {STACK.map(({ icon, label, role, detail, c }, i) => (
+          <motion.div
+            key={label}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: i * 0.1 }}
+          >
+            <Card
+              className="px-5 py-6 text-center h-full"
+              style={{ borderColor: `color-mix(in oklch, ${c} 30%, var(--border))` }}
+            >
+              <div className="flex justify-center mb-4" style={{ color: c }}>{icon}</div>
+              <div className="text-sm font-medium text-foreground">{label}</div>
+              <div className="mt-1 text-xs" style={{ color: c }}>{role}</div>
+              <div className="mt-3 text-[10px] text-muted-foreground leading-relaxed">{detail}</div>
+            </Card>
+          </motion.div>
+        ))}
+      </div>
+      <div className="mt-6 flex items-center gap-4 text-xs text-muted-foreground max-w-3xl text-left">
+        <Layers size={14} className="shrink-0" style={{ color: 'var(--primary)' }} />
+        <span>
+          Python workers are spawned via <code className="font-mono text-foreground">nohup python3 run_vrp.py</code>; results are polled
+          via a filesystem sentinel (.out.json). Quantum jobs on IBM hardware exceed 900 seconds — handled fully asynchronously.
+        </span>
+      </div>
+    </Center>
+  )
+}
+
+/* ─────────────────────────────────────────── slide 12 — live mapbox */
+const EMPTY_GEOJSON: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
+
+const DEPOT_FEATURE: GeoJSON.Feature = {
+  type: 'Feature',
+  properties: {},
+  geometry: { type: 'Point', coordinates: [DEPOT_LON, DEPOT_LAT] },
+}
+
+const PANEL_META = {
+  destructive: {
+    insight: 'Routes cross city boundaries — one driver covers everything',
+    statColor: 'oklch(0.577 0.245 27.325)',
+  },
+  primary: {
+    insight: 'Each vehicle stays in its geographic cluster — balanced workload',
+    statColor: 'oklch(0.72 0.18 35)',
+  },
+} as const
+
+function MapPanel({
+  geojson, nodeGeojson, badge, token, result,
+}: {
+  geojson: GeoJSON.FeatureCollection
+  nodeGeojson: GeoJSON.FeatureCollection
+  badge: 'destructive' | 'primary'
+  token: string
+  result: CachedResult | null
+}) {
+  const mapRef = useRef<MapRef>(null)
+  const stopRef = useRef(false)
+  const meta = PANEL_META[badge]
+
+  useEffect(() => {
+    stopRef.current = false
+
+    return () => {
+      stopRef.current = true
+    }
+  }, [])
+
+  const handleLoad = useCallback(() => {
+    if (!mapRef.current || !result) {
+      return
+    }
+
+    stopRef.current = false
+
+    const cx = (result.bbox.east + result.bbox.west) / 2
+    const cy = (result.bbox.north + result.bbox.south) / 2
+
+    // Phase 1: fly straight down from globe into the routes — no rotation, no tilt
+    setTimeout(() => {
+      if (stopRef.current || !mapRef.current) {
+        return
+      }
+
+      mapRef.current.flyTo({
+        center: [cx, cy],
+        zoom: 13,
+        bearing: 0,
+        pitch: 0,
+        duration: 4500,
+        curve: 1,
+        essential: true,
+      })
+
+      // Phase 2: gentle north-south drift + subtle zoom pulse once landed
+      setTimeout(() => {
+        let dir = 1
+
+        const drift = () => {
+          if (stopRef.current || !mapRef.current) {
+            return
+          }
+
+          mapRef.current.easeTo({
+            center: [cx, cy + dir * 0.005],
+            zoom: 13 + dir * 0.12,
+            duration: 8000,
+          })
+          dir *= -1
+          setTimeout(() => {
+            if (!stopRef.current) {
+              drift()
+            }
+          }, 8500)
+        }
+
+        drift()
+      }, 5000)
+    }, 700)
+  }, [result])
+
+  const num = result?.summary.num_routes ?? '—'
+  const sigma = result ? Math.round(result.summary.distance_std).toLocaleString() : '—'
+  const phi = result?.summary.weighted_fairness
+    ? Math.round(result.summary.weighted_fairness).toLocaleString()
+    : '—'
+  const dist = result ? Math.round(result.summary.total_distance / 1000).toLocaleString() + ' km' : '—'
+  const label = badge === 'destructive' ? 'Tabu Search' : 'Recursive QAOA'
+
+  return (
+    <div className="flex-1 flex flex-col gap-2.5 min-h-0">
+      {/* map canvas */}
+      <div className="relative flex-1 rounded-xl overflow-hidden" style={{ minHeight: 260 }}>
+        <Map
+          ref={mapRef}
+          mapboxAccessToken={token}
+          initialViewState={{ longitude: DEPOT_LON, latitude: DEPOT_LAT - 18, zoom: 2 }}
+          attributionControl={false}
+          onLoad={handleLoad}
+          style={{ width: '100%', height: '100%' }}
+          mapStyle="mapbox://styles/mapbox/dark-v11"
+        >
+          <Source id={`routes-${badge}`} type="geojson" data={geojson}>
+            <Layer
+              id={`glow-${badge}`}
+              type="line"
+              paint={{ 'line-color': ['get', 'color'], 'line-width': 10, 'line-opacity': 0.15, 'line-blur': 6 }}
+              layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+            />
+            <Layer
+              id={`routes-line-${badge}`}
+              type="line"
+              paint={{ 'line-color': ['get', 'color'], 'line-width': 2, 'line-opacity': 0.92 }}
+              layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+            />
+          </Source>
+          <Source id={`nodes-${badge}`} type="geojson" data={nodeGeojson}>
+            <Layer
+              id={`nodes-circle-${badge}`}
+              type="circle"
+              paint={{ 'circle-radius': 2, 'circle-color': '#ffffff', 'circle-opacity': 0.4 }}
+            />
+          </Source>
+          <Source id={`depot-${badge}`} type="geojson" data={DEPOT_FEATURE}>
+            <Layer
+              id={`depot-glow-${badge}`}
+              type="circle"
+              paint={{ 'circle-radius': 16, 'circle-color': meta.statColor, 'circle-opacity': 0.2, 'circle-blur': 1 }}
+            />
+            <Layer
+              id={`depot-dot-${badge}`}
+              type="circle"
+              paint={{ 'circle-radius': 6, 'circle-color': '#ffffff', 'circle-stroke-width': 2.5, 'circle-stroke-color': meta.statColor, 'circle-opacity': 1 }}
+            />
+          </Source>
+        </Map>
+
+        {/* top badge */}
+        <div className="absolute top-3 left-3 z-10 flex items-center gap-2">
+          <Badge v={badge}>{label}</Badge>
+          {result && (
+            <span className="text-[10px] font-mono text-muted-foreground bg-background/60 backdrop-blur-sm px-2 py-0.5 rounded">
+              {num} vehicles
+            </span>
+          )}
+        </div>
+
+        {/* insight callout bottom */}
+        <div className="absolute bottom-0 left-0 right-0 z-10 px-3 pb-3">
+          <div
+            className="text-[10px] font-sans leading-snug px-3 py-2 rounded-lg backdrop-blur-sm"
+            style={{
+              background: `color-mix(in oklch, ${meta.statColor} 12%, oklch(0.13 0.02 250 / 0.75))`,
+              border: `1px solid color-mix(in oklch, ${meta.statColor} 30%, transparent)`,
+              color: meta.statColor,
+            }}
+          >
+            {meta.insight}
+          </div>
+        </div>
+
+        {/* vignette */}
+        <div className="absolute inset-0 pointer-events-none rounded-xl" style={{ boxShadow: 'inset 0 0 36px oklch(0.13 0.02 250 / 0.45)' }} />
+      </div>
+
+      {/* stats row */}
+      <div className="grid grid-cols-4 gap-2 shrink-0">
+        {[
+          { k: 'Routes', v: String(num) },
+          { k: 'Dist (total)', v: dist },
+          { k: 'Std Dev σ', v: sigma },
+          { k: 'Φ score', v: phi },
+        ].map(({ k, v }) => (
+          <div key={k} className="bg-card border border-border rounded-lg px-2.5 py-2 text-center">
+            <div className="font-mono text-sm tabular-nums" style={{ color: meta.statColor }}>{v}</div>
+            <div className="text-[9px] uppercase tracking-wider text-muted-foreground mt-0.5">{k}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function S12Maps({ token }: { token: string }) {
+  const [{ tabu, qaoa }] = useState(() => loadCachedResults())
+
+  if (!token) {
+    return (
+      <Center>
+        <Ey>Visual Proof</Ey>
+        <H size="sm">Mapbox token not provided.</H>
+        <P>Pass <code className="font-mono">mapboxToken</code> from the Laravel controller to enable this slide.</P>
+      </Center>
+    )
+  }
+
+  return (
+    <div className="absolute inset-0 flex flex-col px-8 py-5">
+      <div className="mb-4 shrink-0">
+        <Ey>Same Instance · Same Distance Matrix · OSMnx Street-Routed</Ey>
+        <H size="sm">Same city. Radically different fairness.</H>
+      </div>
+      <div className="flex-1 flex gap-5 min-h-0">
+        <MapPanel
+          token={token}
+          geojson={tabu ? resultToGeoJSON(tabu) : EMPTY_GEOJSON}
+          nodeGeojson={tabu ? nodesToGeoJSON(tabu) : EMPTY_GEOJSON}
+          result={tabu}
+          badge="destructive"
+        />
+        <MapPanel
+          token={token}
+          geojson={qaoa ? resultToGeoJSON(qaoa) : EMPTY_GEOJSON}
+          nodeGeojson={qaoa ? nodesToGeoJSON(qaoa) : EMPTY_GEOJSON}
+          result={qaoa}
+          badge="primary"
+        />
+      </div>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────── slide 13 — benchmark */
+function fmt(n: number) {
+  return n.toLocaleString('en-US')
+}
+
+type BRow = { algo: string; short: string; k: number; dist: number; sd: number; phi: number; gap: number; win?: boolean }
+
+const BENCH: Record<string, BRow[]> = {
+  '50': [
+    { algo: 'Recursive QAOA + 2-opt',      short: 'QAOA + 2-opt',    k: 15, dist:  87_140, sd:  2_954, phi:  4_382, gap:   0.0,  win: true },
+    { algo: 'Recursive QAOA (No 2-opt)',   short: 'QAOA',            k: 15, dist:  87_359, sd:  2_957, phi:  4_391, gap:   0.2 },
+    { algo: 'Sweep + 2-opt',               short: 'Sweep + 2-opt',   k: 15, dist: 102_780, sd:  2_337, phi:  4_595, gap:   4.9 },
+    { algo: 'Genetic Algorithm',           short: 'Genetic',         k: 15, dist: 103_784, sd:  2_291, phi:  4_605, gap:   5.1 },
+    { algo: 'Tabu Search',                 short: 'Tabu Search',     k: 15, dist:  67_819, sd:  5_051, phi:  4_786, gap:   9.2 },
+    { algo: 'Sweep',                       short: 'Sweep',           k: 15, dist: 111_370, sd:  2_741, phi:  5_083, gap:  16.0 },
+    { algo: 'Clarke-Wright Par. + 2-opt',  short: 'CW-Par + 2-opt', k: 15, dist:  60_508, sd:  6_194, phi:  5_114, gap:  16.7 },
+    { algo: 'OR-Tools (Savings + GLS)',    short: 'OR-Tools',        k: 15, dist:  60_412, sd:  6_328, phi:  5_178, gap:  18.2 },
+    { algo: 'Clarke-Wright Parallel',      short: 'CW-Par',          k: 15, dist:  61_275, sd:  6_383, phi:  5_234, gap:  19.5 },
+    { algo: 'Clarke-Wright Seq. + 2-opt',  short: 'CW-Seq + 2-opt', k:  9, dist:  72_661, sd:  3_118, phi:  5_596, gap:  27.7 },
+    { algo: 'Insertion Heuristics + 2-opt',short: 'Insertion + 2-opt',k:15, dist: 156_770, sd:  2_059, phi:  6_255, gap:  42.8 },
+    { algo: "Benchmark's Optimizer",       short: 'Prior Benchmark', k:  7, dist:  47_761, sd:  8_355, phi:  7_589, gap:  64.6 },
+  ],
+  '100': [
+    { algo: 'Recursive QAOA + 2-opt',      short: 'QAOA + 2-opt',    k: 30, dist: 179_702, sd:  3_035, phi:  4_513, gap:   0.0,  win: true },
+    { algo: 'Recursive QAOA (No 2-opt)',   short: 'QAOA',            k: 30, dist: 180_323, sd:  3_034, phi:  4_522, gap:   0.22 },
+    { algo: 'Clarke-Wright Par. + Or-opt', short: 'CW-Par + Or-opt', k: 30, dist: 111_147, sd:  6_604, phi:  5_154, gap:  14.22 },
+    { algo: 'Clarke-Wright Parallel',      short: 'CW-Par',          k: 30, dist: 111_259, sd:  6_623, phi:  5_166, gap:  14.47 },
+    { algo: 'OR-Tools (Savings + GLS)',    short: 'OR-Tools',        k: 30, dist: 108_732, sd:  7_499, phi:  5_562, gap:  23.25 },
+    { algo: 'Clarke-Wright Seq. + 2-opt',  short: 'CW-Seq + 2-opt', k: 14, dist: 129_147, sd:  2_089, phi:  5_657, gap:  25.36 },
+    { algo: 'Iterated Local Search',       short: 'ILS',             k: 23, dist: 105_091, sd:  7_638, phi:  6_225, gap:  37.94 },
+    { algo: 'Nearest-Neighbour + 2-opt',   short: 'NN + 2-opt',      k: 30, dist: 340_595, sd:  3_017, phi:  7_185, gap:  59.22 },
+    { algo: 'Simulated Annealing',         short: 'Sim. Annealing',  k:  9, dist:  73_313, sd: 11_827, phi: 10_887, gap: 141.24 },
+    { algo: 'Tabu Search',                 short: 'Tabu Search',     k:  5, dist:  68_016, sd: 12_724, phi: 12_163, gap: 169.52 },
+  ],
+  '200': [
+    { algo: 'Recursive QAOA + 2-opt',      short: 'QAOA + 2-opt',    k: 30, dist: 224_555, sd:  3_899, phi:  5_692, gap:   0.0,  win: true },
+    { algo: 'Recursive QAOA (No 2-opt)',   short: 'QAOA',            k: 30, dist: 230_951, sd:  4_010, phi:  5_854, gap:   2.84 },
+    { algo: 'Clarke-Wright Seq. + 2-opt',  short: 'CW-Seq + 2-opt', k: 27, dist: 278_702, sd:  2_118, phi:  6_220, gap:   9.27 },
+    { algo: 'OR-Tools (Savings + GLS)',    short: 'OR-Tools',        k: 30, dist: 130_159, sd:  9_088, phi:  6_714, gap:  17.94 },
+    { algo: 'Clarke-Wright Par. + 2-opt',  short: 'CW-Par + 2-opt', k: 30, dist: 131_394, sd:  9_263, phi:  6_821, gap:  19.83 },
+    { algo: 'Clarke-Wright Parallel',      short: 'CW-Par',          k: 30, dist: 134_214, sd:  9_713, phi:  7_093, gap:  24.61 },
+    { algo: 'Iterated Local Search',       short: 'ILS',             k: 22, dist: 126_723, sd: 10_490, phi:  8_125, gap:  42.73 },
+    { algo: 'Sweep',                       short: 'Sweep',           k: 30, dist: 551_830, sd:  4_047, phi: 11_221, gap:  97.11 },
+    { algo: 'Simulated Annealing',         short: 'Sim. Annealing',  k:  8, dist: 103_332, sd: 16_303, phi: 14_610, gap: 156.66 },
+    { algo: 'Tabu Search',                 short: 'Tabu Search',     k:  6, dist:  97_512, sd: 17_664, phi: 16_958, gap: 197.91 },
+  ],
+  '1000': [
+    { algo: 'Recursive QAOA + 2-opt',      short: 'QAOA + 2-opt',    k: 45, dist: 387_653, sd:  4_268, phi:  6_441, gap:   0.0,  win: true },
+    { algo: 'Clarke-Wright Seq. + 2-opt',  short: 'CW-Seq + 2-opt', k: 45, dist: 467_485, sd:  3_030, phi:  6_709, gap:   4.16 },
+    { algo: 'Clarke-Wright Sequential',    short: 'CW-Seq',          k: 45, dist: 485_505, sd:  3_212, phi:  7_001, gap:   8.68 },
+    { algo: 'Recursive QAOA (No 2-opt)',   short: 'QAOA',            k: 45, dist: 438_321, sd:  4_881, phi:  7_311, gap:  13.50 },
+    { algo: 'Clarke-Wright Par. + Or-opt', short: 'CW-Par + Or-opt', k: 45, dist: 218_560, sd: 18_258, phi: 11_557, gap:  79.42 },
+    { algo: 'OR-Tools (Savings + GLS)',    short: 'OR-Tools',        k: 45, dist: 219_329, sd: 18_400, phi: 11_637, gap:  80.66 },
+    { algo: 'Clarke-Wright Parallel',      short: 'CW-Par',          k: 45, dist: 224_586, sd: 18_913, phi: 11_952, gap:  85.55 },
+    { algo: 'Iterated Local Search',       short: 'ILS',             k: 37, dist: 215_397, sd: 20_184, phi: 13_003, gap: 101.87 },
+    { algo: 'Brazil Benchmark',            short: 'Prior Benchmark', k: 22, dist: 509_692, sd: 14_616, phi: 18_892, gap:  65.90 },
+    { algo: 'Tabu Search',                 short: 'Tabu Search',     k: 12, dist: 200_695, sd: 33_986, phi: 25_355, gap: 293.63 },
+    { algo: 'Simulated Annealing',         short: 'Sim. Annealing',  k: 12, dist: 201_637, sd: 33_934, phi: 25_369, gap: 293.84 },
+  ],
+}
+
+const SCALE_PANELS = [
+  { key: '50',   label: 'n = 50',   sub: 'k = 15 · 1 run'   },
+  { key: '100',  label: 'n = 100',  sub: 'k = 30 · 10 runs' },
+  { key: '200',  label: 'n = 200',  sub: 'k = 30 · 1 run'   },
+  { key: '1000', label: 'n = 1000', sub: 'k = 45 · 1 run'   },
+]
+
+function ScalePanel({ scaleKey, label, sub }: { scaleKey: string; label: string; sub: string }) {
+  const rows = BENCH[scaleKey]
+  const maxPhi = Math.max(...rows.map((r) => r.phi))
+  const winner = rows.find((r) => r.win)
+  const worst = rows.reduce((a, b) => (a.phi > b.phi ? a : b))
+
+  return (
+    <div
+      className="flex flex-col min-h-0 rounded-xl p-4 overflow-hidden"
+      style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+    >
+      {/* panel header */}
+      <div className="shrink-0 flex items-baseline justify-between mb-3 pb-2.5" style={{ borderBottom: '1px solid var(--border)' }}>
+        <div className="font-mono font-semibold text-sm" style={{ color: 'var(--foreground)' }}>{label}</div>
+        <div className="font-mono text-[10px]" style={{ color: 'var(--muted-foreground)' }}>{sub}</div>
+      </div>
+
+      {/* rows */}
+      <div className="flex-1 overflow-y-auto min-h-0 flex flex-col gap-1.5 pr-0.5">
+        {rows.map(({ short, phi, gap, win }, i) => (
+          <motion.div
+            key={short}
+            className="flex items-center gap-2"
+            initial={{ opacity: 0, x: -6 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3, delay: i * 0.035 }}
+          >
+            {/* label */}
+            <div
+              className="font-mono text-[9px] shrink-0 truncate"
+              style={{ width: 100, color: win ? 'var(--primary)' : 'var(--muted-foreground)' }}
+            >
+              {win && <span className="mr-0.5">★</span>}{short}
+            </div>
+            {/* bar */}
+            <div className="flex-1 h-4 rounded overflow-hidden relative" style={{ background: 'color-mix(in oklch, var(--muted-foreground) 10%, transparent)' }}>
+              <motion.div
+                className="absolute inset-y-0 left-0 rounded"
+                style={{
+                  background: win
+                    ? 'color-mix(in oklch, var(--primary) 75%, transparent)'
+                    : 'color-mix(in oklch, var(--muted-foreground) 22%, transparent)',
+                }}
+                initial={{ width: 0 }}
+                animate={{ width: `${(phi / maxPhi) * 100}%` }}
+                transition={{ duration: 0.9, delay: 0.1 + i * 0.035, ease: [0.22, 1, 0.36, 1] }}
+              />
+              <div
+                className="absolute right-1.5 inset-y-0 flex items-center font-mono text-[8px] tabular-nums"
+                style={{ color: win ? 'var(--primary)' : 'var(--muted-foreground)' }}
+              >
+                {fmt(phi)}
+              </div>
+            </div>
+            {/* gap */}
+            <div
+              className="font-mono text-[8px] tabular-nums shrink-0 text-right"
+              style={{ width: 36, color: win ? 'var(--primary)' : gap > 100 ? 'var(--destructive)' : 'var(--muted-foreground)' }}
+            >
+              {gap.toFixed(1)}%
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* winner callout */}
+      {winner && (
+        <div
+          className="shrink-0 mt-3 pt-2.5 flex items-center justify-between"
+          style={{ borderTop: '1px solid var(--border)' }}
+        >
+          <div>
+            <div className="font-mono text-[9px]" style={{ color: 'var(--muted-foreground)' }}>QAOA Φ</div>
+            <div className="font-mono text-xs tabular-nums font-semibold" style={{ color: 'var(--primary)' }}>{fmt(winner.phi)}</div>
+          </div>
+          <div className="text-right">
+            <div className="font-mono text-[9px]" style={{ color: 'var(--muted-foreground)' }}>worst vs QAOA</div>
+            <div className="font-mono text-xs tabular-nums font-semibold" style={{ color: 'var(--destructive)' }}>
+              +{((worst.phi / winner.phi - 1) * 100).toFixed(0)}%
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="font-mono text-[9px]" style={{ color: 'var(--muted-foreground)' }}>gap</div>
+            <div className="font-mono text-xs tabular-nums font-semibold" style={{ color: 'var(--chart-3)' }}>{winner.gap.toFixed(1)}%</div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function S13Benchmark() {
+  return (
+    <div className="absolute inset-0 flex flex-col px-8 py-5">
+      <div className="shrink-0 mb-4">
+        <Ey>Algorithm Benchmark · Rio Claro Dataset · Φ = Weighted Fairness Index (lower is better)</Ey>
+        <H size="sm">QAOA leads on fairness at every scale.</H>
+      </div>
+      <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-4 min-h-0">
+        {SCALE_PANELS.map(({ key, label, sub }) => (
+          <ScalePanel key={key} scaleKey={key} label={label} sub={sub} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────── slide 14 — hardware */
+function S14Hardware() {
+  return (
+    <Center>
+      <Ey>Physical Quantum Hardware Validation</Ey>
+      <H>ibm_fez · 156 qubits.</H>
+      <Hr />
+      <motion.div
+        className="mt-6 w-full max-w-2xl rounded-2xl p-8 text-left"
+        style={{
+          background: 'color-mix(in oklch, var(--primary) 8%, var(--card))',
+          border: '1px solid color-mix(in oklch, var(--primary) 35%, transparent)',
+          boxShadow: '0 0 60px oklch(0.72 0.18 35 / 0.06)',
+        }}
+        initial={{ opacity: 0, scale: 0.96 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.7 }}
+      >
+        <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-primary mb-4">
+          Execution Report
+        </div>
+        <div className="grid grid-cols-2 gap-6">
+          {[
+            { k: 'Backend', v: 'ibm_fez' },
+            { k: 'Physical qubits', v: '156' },
+            { k: 'Problem size', v: '36 qubits' },
+            { k: 'Distance result', v: '12,348.3' },
+            { k: 'Optimal gap', v: '+0.00%' },
+            { k: 'Projection method', v: 'Hungarian algorithm' },
+          ].map(({ k, v }) => (
+            <div key={k}>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">{k}</div>
+              <div className="font-mono text-lg" style={{ color: 'var(--primary)' }}>{v}</div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-6 pt-5 border-t border-border text-sm text-muted-foreground leading-relaxed">
+          The Hungarian projection method recovers optimality gap exactly to +0.00% — confirming that
+          our QUBO formulation correctly maps the routing objective onto physical qubit interactions,
+          and that the ansatz depth was sufficient to reach the ground state on real hardware.
+        </div>
+      </motion.div>
+      <div className="mt-6 grid grid-cols-2 gap-4 w-full max-w-2xl">
+        {[
+          { v: '0.37%', label: '2Q gate error · ibm_fez', c: 'var(--chart-3)' },
+          { v: '900s+', label: 'Async job execution time', c: 'var(--destructive)' },
+        ].map(({ v, label, c }) => (
+          <div key={label} className="text-center bg-card border border-border rounded-xl py-4">
+            <div className="font-mono text-2xl tabular-nums" style={{ color: c }}>{v}</div>
+            <div className="mt-1 text-[10px] text-muted-foreground">{label}</div>
+          </div>
+        ))}
+      </div>
+    </Center>
+  )
+}
+
+/* ─────────────────────────────────────────── slide 15 — future work */
+function S15FutureWork() {
+  return (
+    <Center>
+      <Ey>Future Research</Ey>
+      <H>Parameter Transferability.</H>
+      <Hr />
+      <div className="mt-4 grid grid-cols-2 gap-6 w-full max-w-3xl">
+        {[
+          {
+            label: 'Cold Start',
+            desc: 'Initialise QAOA angles randomly. Standard baseline — correct for novel problem classes with no prior data.',
+            steps: ['Random β, γ initialisation', 'COBYLA full optimisation', 'Complete circuit evaluation each run'],
+            c: 'var(--chart-3)',
+          },
+          {
+            label: 'Warm Start · Proved',
+            desc: 'Optimal angles learned on one cluster transfer zero-shot to a different geographic cluster of the same size.',
+            steps: ['Parameter library cached per cluster size', 'Structural similarity lookup (QUBO embedding)', 'Fine-tune only · 60% fewer evaluations'],
+            c: 'var(--primary)',
+          },
+        ].map(({ label, desc, steps, c }) => (
+          <motion.div
+            key={label}
+            className="p-7 text-left bg-card rounded-xl border"
+            style={{ borderColor: `color-mix(in oklch, ${c} 30%, var(--border))` }}
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <Badge>{label}</Badge>
+            <div className="mt-4 text-sm leading-relaxed text-muted-foreground">{desc}</div>
+            <div className="mt-5 space-y-3">
+              {steps.map((s, i) => (
+                <div key={s} className="flex items-center gap-3 text-sm">
+                  <span
+                    className="w-6 h-6 rounded flex items-center justify-center text-[10px] font-mono shrink-0"
+                    style={{ background: `color-mix(in oklch, ${c} 15%, transparent)`, color: c }}
+                  >
+                    {i + 1}
+                  </span>
+                  <span className="text-muted-foreground">{s}</span>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        ))}
+      </div>
+      <div className="mt-6 w-full max-w-3xl bg-card border border-border rounded-xl p-5 text-left">
+        <div className="font-mono text-xs mb-2" style={{ color: 'var(--chart-4)' }}>Open problem</div>
+        <div className="text-sm text-muted-foreground leading-relaxed">
+          Can warm-start parameters transfer across{' '}
+          <em className="text-foreground">structurally similar</em> VRP instances of{' '}
+          <em className="text-foreground">different sizes</em>?
+          A graph-embedding similarity measure on the QUBO matrix structure —
+          rather than raw cluster geography — may generalise this finding into a universal parameter cache.
+        </div>
+      </div>
+    </Center>
+  )
+}

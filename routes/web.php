@@ -38,7 +38,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('dashboard/live-locations', [DashboardController::class, 'liveLocations'])
         ->name('dashboard.live-locations');
-    Route::inertia('presentation', 'presentation')->name('presentation');
+    Route::get('presentation', fn () => inertia('presentation', ['mapboxToken' => config('services.mapbox.token')]))->name('presentation');
 
     Route::resource('users', UserController::class);
     Route::resource('routes', DispatchRouteController::class)
