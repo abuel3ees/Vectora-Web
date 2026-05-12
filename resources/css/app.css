@@ -5,75 +5,75 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Deep navy/ink base with warm coral accent - non-cliche VRP palette */
-  --background: oklch(0.13 0.02 250);
-  --foreground: oklch(0.98 0 0);
-  --card: oklch(0.16 0.02 250);
-  --card-foreground: oklch(0.98 0 0);
-  --popover: oklch(0.16 0.02 250);
-  --popover-foreground: oklch(0.98 0 0);
-  --primary: oklch(0.72 0.18 35);
-  --primary-foreground: oklch(0.13 0.02 250);
-  --secondary: oklch(0.22 0.02 250);
-  --secondary-foreground: oklch(0.98 0 0);
-  --muted: oklch(0.20 0.02 250);
-  --muted-foreground: oklch(0.65 0 0);
-  --accent: oklch(0.72 0.18 35);
-  --accent-foreground: oklch(0.13 0.02 250);
+  /* Exact welcome.tsx palette — canvas #111110, surface #1B1B19, charcoal #F0EFE9, coral #D97045 */
+  --background: #111110;
+  --foreground: #F0EFE9;
+  --card: #1B1B19;
+  --card-foreground: #F0EFE9;
+  --popover: #1B1B19;
+  --popover-foreground: #F0EFE9;
+  --primary: #D97045;
+  --primary-foreground: #111110;
+  --secondary: #222220;
+  --secondary-foreground: #F0EFE9;
+  --muted: #1F1F1D;
+  --muted-foreground: #6B6B68;
+  --accent: #D97045;
+  --accent-foreground: #111110;
   --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.25 0.02 250);
-  --input: oklch(0.22 0.02 250);
-  --ring: oklch(0.72 0.18 35);
-  --chart-1: oklch(0.72 0.18 35);
+  --destructive-foreground: #F0EFE9;
+  --border: #2C2C29;
+  --input: #1B1B19;
+  --ring: #D97045;
+  --chart-1: #D97045;
   --chart-2: oklch(0.65 0.15 200);
   --chart-3: oklch(0.75 0.12 80);
   --chart-4: oklch(0.60 0.20 320);
   --chart-5: oklch(0.55 0.18 180);
   --radius: 0.5rem;
-  --sidebar: oklch(0.11 0.02 250);
-  --sidebar-foreground: oklch(0.98 0 0);
-  --sidebar-primary: oklch(0.72 0.18 35);
-  --sidebar-primary-foreground: oklch(0.13 0.02 250);
-  --sidebar-accent: oklch(0.18 0.02 250);
-  --sidebar-accent-foreground: oklch(0.98 0 0);
-  --sidebar-border: oklch(0.25 0.02 250);
-  --sidebar-ring: oklch(0.72 0.18 35);
+  --sidebar: #0E0E0D;
+  --sidebar-foreground: #F0EFE9;
+  --sidebar-primary: #D97045;
+  --sidebar-primary-foreground: #111110;
+  --sidebar-accent: #1B1B19;
+  --sidebar-accent-foreground: #F0EFE9;
+  --sidebar-border: #2C2C29;
+  --sidebar-ring: #D97045;
 }
 
 .dark {
-  --background: oklch(0.13 0.02 250);
-  --foreground: oklch(0.98 0 0);
-  --card: oklch(0.16 0.02 250);
-  --card-foreground: oklch(0.98 0 0);
-  --popover: oklch(0.16 0.02 250);
-  --popover-foreground: oklch(0.98 0 0);
-  --primary: oklch(0.72 0.18 35);
-  --primary-foreground: oklch(0.13 0.02 250);
-  --secondary: oklch(0.22 0.02 250);
-  --secondary-foreground: oklch(0.98 0 0);
-  --muted: oklch(0.20 0.02 250);
-  --muted-foreground: oklch(0.65 0 0);
-  --accent: oklch(0.72 0.18 35);
-  --accent-foreground: oklch(0.13 0.02 250);
+  --background: #111110;
+  --foreground: #F0EFE9;
+  --card: #1B1B19;
+  --card-foreground: #F0EFE9;
+  --popover: #1B1B19;
+  --popover-foreground: #F0EFE9;
+  --primary: #D97045;
+  --primary-foreground: #111110;
+  --secondary: #222220;
+  --secondary-foreground: #F0EFE9;
+  --muted: #1F1F1D;
+  --muted-foreground: #6B6B68;
+  --accent: #D97045;
+  --accent-foreground: #111110;
   --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.25 0.02 250);
-  --input: oklch(0.22 0.02 250);
-  --ring: oklch(0.72 0.18 35);
-  --chart-1: oklch(0.72 0.18 35);
+  --destructive-foreground: #F0EFE9;
+  --border: #2C2C29;
+  --input: #1B1B19;
+  --ring: #D97045;
+  --chart-1: #D97045;
   --chart-2: oklch(0.65 0.15 200);
   --chart-3: oklch(0.75 0.12 80);
   --chart-4: oklch(0.60 0.20 320);
   --chart-5: oklch(0.55 0.18 180);
-  --sidebar: oklch(0.11 0.02 250);
-  --sidebar-foreground: oklch(0.98 0 0);
-  --sidebar-primary: oklch(0.72 0.18 35);
-  --sidebar-primary-foreground: oklch(0.13 0.02 250);
-  --sidebar-accent: oklch(0.18 0.02 250);
-  --sidebar-accent-foreground: oklch(0.98 0 0);
-  --sidebar-border: oklch(0.25 0.02 250);
-  --sidebar-ring: oklch(0.72 0.18 35);
+  --sidebar: #0E0E0D;
+  --sidebar-foreground: #F0EFE9;
+  --sidebar-primary: #D97045;
+  --sidebar-primary-foreground: #111110;
+  --sidebar-accent: #1B1B19;
+  --sidebar-accent-foreground: #F0EFE9;
+  --sidebar-border: #2C2C29;
+  --sidebar-ring: #D97045;
 }
 
 @theme inline {
@@ -129,7 +129,7 @@
   }
   body {
     @apply bg-background text-foreground;
-    background-image: radial-gradient(ellipse 70% 50% at 50% -20%, oklch(0.72 0.18 35 / 0.06), transparent 70%);
+    background-image: radial-gradient(ellipse 70% 50% at 50% -20%, rgb(217 112 69 / 0.06), transparent 70%);
   }
   .font-serif { font-family: var(--font-serif); }
   .font-display { font-family: var(--font-serif); font-style: italic; letter-spacing: -0.02em; }
@@ -139,8 +139,8 @@
   .gpu { transform: translate3d(0,0,0); backface-visibility: hidden; will-change: transform, opacity; }
   .grid-bg {
     background-image:
-      linear-gradient(oklch(0.72 0.18 35 / 0.06) 1px, transparent 1px),
-      linear-gradient(90deg, oklch(0.72 0.18 35 / 0.06) 1px, transparent 1px);
+      linear-gradient(rgb(217 112 69 / 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(217 112 69 / 0.06) 1px, transparent 1px);
     background-size: 48px 48px;
     mask-image: radial-gradient(ellipse 60% 50% at 50% 40%, black 40%, transparent 80%);
   }
@@ -164,10 +164,10 @@
   }
   .border-flow {
     background: linear-gradient(110deg,
-      oklch(0.72 0.18 35 / 0.0) 0%,
-      oklch(0.72 0.18 35 / 0.6) 45%,
+      rgb(217 112 69 / 0) 0%,
+      rgb(217 112 69 / 0.6) 45%,
       oklch(0.65 0.15 200 / 0.6) 55%,
-      oklch(0.72 0.18 35 / 0.0) 100%);
+      rgb(217 112 69 / 0) 100%);
     background-size: 200% 100%;
     animation: border-flow 4s ease-in-out infinite;
   }
@@ -185,7 +185,7 @@
     position: absolute;
     left: 50%; top: 50%;
     width: 140%; height: 140%;
-    background: conic-gradient(from 0deg, transparent 0deg, oklch(0.72 0.18 35 / 0.35) 20deg, transparent 60deg);
+    background: conic-gradient(from 0deg, transparent 0deg, rgb(217 112 69 / 0.35) 20deg, transparent 60deg);
     border-radius: 9999px;
     animation: vx-radar 3.2s linear infinite;
     pointer-events: none;
@@ -197,4 +197,7 @@
     50%      { opacity: 0.45; }
   }
   .vx-grid-fade { animation: vx-grid-fade 2.4s ease-in-out infinite; }
+
+  .mapboxgl-ctrl-logo,
+  .mapboxgl-ctrl-attrib { display: none !important; }
 }

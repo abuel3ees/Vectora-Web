@@ -1,4 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
+import katex from 'katex'
+import 'katex/dist/katex.min.css'
 import {
   Brain, Camera, CheckCircle2, ChevronRight,
   Cpu, Globe2, Layers, MapPin, MessageSquare,
@@ -203,11 +205,11 @@ export default function Presentation({ mapboxToken }: Props) {
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight' || e.key === ' ') {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
         go(cur + 1)
       }
 
-      if (e.key === 'ArrowLeft') {
+      if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
         go(cur - 1)
       }
     }
@@ -426,17 +428,6 @@ function Split({ L, R }: { L: React.ReactNode; R: React.ReactNode }) {
     <div className="grid grid-cols-2 gap-14 max-w-6xl w-full px-14 items-center">
       <div>{L}</div>
       <div>{R}</div>
-    </div>
-  )
-}
-
-function MathBlock({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      className="bg-card border border-border rounded-xl px-6 py-5 font-mono text-sm leading-loose overflow-x-auto"
-      style={{ fontFamily: 'var(--font-mono)' }}
-    >
-      {children}
     </div>
   )
 }
@@ -806,163 +797,175 @@ function S04Tunneling() {
   )
 }
 
-/* ─────────────────────────────────────────── slide 5 — qaoa math */
-function S05QAOAMath() {
+/* ─────────────────────────────────────────── shared math equation canvas */
+type MathHighlight = 'cost' | 'qubo' | 'nisq'
+
+const MATH_COLORS_HEX: Record<string, string> = {
+  cost:  '#e06c3a',
+  mixer: '#818cf8',
+  qubo:  '#facc15',
+  nisq:  '#ef4444',
+}
+
+const MATH_EXPLANATIONS: Record<MathHighlight, { label: string; title: string; body: string }> = {
+  cost: {
+    label: 'QAOA Mechanics',
+    title: 'Two Hamiltonians. One objective.',
+    body: 'H_C encodes routing distances as Pauli-Z spin couplings — J_{ij} weights the edge cost, h_i the node bias. H_M drives quantum superposition across all candidate routes. COBYLA classically tunes γ and β until the quantum state collapses toward the minimum-cost solution.',
+  },
+  qubo: {
+    label: 'Mathematical Mapping',
+    title: 'Binary variables → Pauli-Z spins.',
+    body: 'Quantum hardware evaluates Pauli-Z spins (−1, +1), not bits (0, 1). The substitution x = (1−Z)/2 bridges them. Off-diagonal Q entries become J_{ij} spin couplings; the diagonal becomes h_i biases. H is normalised by max|c| to prevent COBYLA divergence.',
+  },
+  nisq: {
+    label: 'NISQ Hardware Constraint',
+    title: 'The 29-qubit wall.',
+    body: 'Simulating n qubits requires 2ⁿ × 16 B of statevector memory — exponential blowup. At 5 nodes we exhaust local RAM; at 29 we exceed ibm_fez. Our solution: decompose recursively until every sub-problem has ≤ 4 nodes (LEAF_SIZE = 4), then solve each independently on the QPU.',
+  },
+}
+
+function tex(latex: string, color?: string): string {
+  const expr = color ? `{\\color{${color}}{${latex}}}` : latex
+
+  return katex.renderToString(expr, { throwOnError: false, output: 'html' })
+}
+
+function KTerm({
+  latex,
+  id,
+  highlight,
+  display = false,
+  delay = 0.15,
+}: {
+  latex: string
+  id: string
+  highlight: MathHighlight
+  display?: boolean
+  delay?: number
+}) {
+  const isActive = id === highlight || (id === 'mixer' && highlight === 'cost')
+  const color = MATH_COLORS_HEX[id] ?? '#ffffff'
+  const html = tex(latex, isActive ? color : undefined)
+
   return (
-    <Split
-      L={
-        <div>
-          <Ey>QAOA Mechanics</Ey>
-          <H size="lg">Two Hamiltonians. One objective.</H>
-          <Hr />
-          <P>
-            We encode routing constraints into an Ising Hamiltonian and alternate H<sub>C</sub> and H<sub>M</sub>,
-            evolving the quantum state toward the optimal ground state via variational parameters γ and β.
-          </P>
-          <P>
-            COBYLA classically optimises γ and β at each layer depth p. Higher p = better quality,
-            higher gate count, more decoherence.
-          </P>
-        </div>
-      }
-      R={
-        <div className="space-y-5">
-          <div>
-            <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground mb-2" style={{ fontFamily: 'var(--font-mono)' }}>
-              Cost Hamiltonian
-            </div>
-            <MathBlock>
-              <span style={{ color: 'var(--primary)' }}>H<sub>C</sub></span>
-              {' = '}
-              <span style={{ color: 'var(--chart-2)' }}>Σ<sub>{'i,j'}</sub> J<sub>ij</sub> Z<sub>i</sub>Z<sub>j</sub></span>
-              {' + '}
-              <span style={{ color: 'var(--chart-3)' }}>Σ<sub>i</sub> h<sub>i</sub>Z<sub>i</sub></span>
-            </MathBlock>
-          </div>
-          <div>
-            <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground mb-2" style={{ fontFamily: 'var(--font-mono)' }}>
-              Mixer Hamiltonian
-            </div>
-            <MathBlock>
-              <span style={{ color: 'var(--chart-4)' }}>H<sub>M</sub></span>
-              {' = '}
-              <span style={{ color: 'var(--chart-5)' }}>Σ<sub>i</sub> X<sub>i</sub></span>
-            </MathBlock>
-          </div>
-          <div>
-            <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground mb-2" style={{ fontFamily: 'var(--font-mono)' }}>
-              State Evolution
-            </div>
-            <MathBlock>
-              <span style={{ color: 'var(--muted-foreground)' }}>|ψ(γ,β)⟩ = </span>
-              <span style={{ color: 'var(--chart-4)' }}>e<sup>−iβH<sub>M</sub></sup></span>
-              <span style={{ color: 'var(--muted-foreground)' }}> · </span>
-              <span style={{ color: 'var(--primary)' }}>e<sup>−iγH<sub>C</sub></sup></span>
-              <span style={{ color: 'var(--muted-foreground)' }}> |+⟩</span>
-              <sup><span style={{ color: 'var(--chart-2)' }}>⊗n</span></sup>
-            </MathBlock>
-          </div>
-        </div>
-      }
+    <motion.span
+      initial={{ opacity: 0 }}
+      animate={{
+        opacity: isActive ? 1 : 0.14,
+        scale: isActive ? 1.03 : 1,
+        filter: isActive ? `drop-shadow(0 0 28px ${color}99)` : 'none',
+      }}
+      transition={{ duration: 0.8, delay, ease: [0.16, 1, 0.3, 1] }}
+      style={{ display: display ? 'block' : 'inline-block' }}
+      dangerouslySetInnerHTML={{ __html: html }}
     />
   )
+}
+
+function KDim({ latex, delay = 0.1 }: { latex: string; delay?: number }) {
+  return (
+    <motion.span
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 0.2 }}
+      transition={{ duration: 0.6, delay }}
+      style={{ display: 'inline-block' }}
+      dangerouslySetInnerHTML={{ __html: tex(latex) }}
+    />
+  )
+}
+
+function MathEquationSlide({ highlight }: { highlight: MathHighlight }) {
+  const { label, title, body } = MATH_EXPLANATIONS[highlight]
+  const accentColor = MATH_COLORS_HEX[highlight]
+
+  return (
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '28px 72px', gap: 0 }}>
+
+      {/* Section badge */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.26em', color: accentColor, marginBottom: 32 }}
+      >
+        {label}
+      </motion.div>
+
+      {/* ── Row 1: state evolution — large display ── */}
+      <div style={{ fontSize: '3.6rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3em', flexWrap: 'wrap', marginBottom: '0.2em' }}>
+        <KDim latex="|\psi(\gamma,\beta)\rangle =" />
+        <KTerm latex="e^{-i\beta H_M}" id="mixer" highlight={highlight} delay={0.2} />
+        <KDim latex="\cdot" delay={0.12} />
+        <KTerm latex="e^{-i\gamma H_C}" id="cost" highlight={highlight} delay={0.25} />
+        <KDim latex="|{+}\rangle^{\otimes n}" delay={0.1} />
+      </div>
+
+      {/* where */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 0.25 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+        style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '1.1rem', color: 'var(--muted-foreground)', margin: '0.55em 0 0.45em', letterSpacing: '0.06em' }}
+      >
+        where
+      </motion.div>
+
+      {/* ── Row 2: Hamiltonian definitions ── */}
+      <div style={{ fontSize: '2.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1.8em', flexWrap: 'wrap', marginBottom: '0.4em' }}>
+        <KTerm latex="H_C = \sum_{i,j} J_{ij}Z_i Z_j + \sum_i h_i Z_i" id="cost" highlight={highlight} delay={0.28} />
+        <KDim latex="\quad" delay={0} />
+        <KTerm latex="H_M = \sum_i X_i" id="mixer" highlight={highlight} delay={0.32} />
+      </div>
+
+      {/* ── Row 3: QUBO substitution + NISQ bound ── */}
+      <div style={{ fontSize: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2em', flexWrap: 'wrap' }}>
+        <KTerm latex="x = \dfrac{1 - Z}{2}" id="qubo" highlight={highlight} delay={0.35} />
+        <KDim latex="\quad" delay={0} />
+        <KTerm latex="|P| \leq 4 \text{ nodes}" id="nisq" highlight={highlight} delay={0.38} />
+      </div>
+
+      {/* ── Explanation callout ── */}
+      <motion.div
+        key={highlight}
+        initial={{ opacity: 0, y: 28 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.75, delay: 0.55, ease: [0.16, 1, 0.3, 1] }}
+        style={{
+          marginTop: 38,
+          maxWidth: 680,
+          width: '100%',
+          textAlign: 'center',
+          padding: '22px 32px',
+          borderRadius: 14,
+          background: `color-mix(in oklch, ${accentColor} 8%, transparent)`,
+          border: `1px solid color-mix(in oklch, ${accentColor} 26%, transparent)`,
+        }}
+      >
+        <div style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 22, color: accentColor, marginBottom: 10 }}>
+          {title}
+        </div>
+        <div style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--muted-foreground)', lineHeight: 1.75 }}>
+          {body}
+        </div>
+      </motion.div>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────── slide 5 — qaoa math */
+function S05QAOAMath() {
+ return <MathEquationSlide highlight="cost" /> 
 }
 
 /* ─────────────────────────────────────────── slide 6 — qubo */
 function S06QUBO() {
-  return (
-    <Split
-      L={
-        <div>
-          <Ey>Mathematical Mapping</Ey>
-          <H size="lg">Binary variables → Pauli-Z spins.</H>
-          <Hr />
-          <P>
-            Quantum processors evaluate Pauli-Z spins (−1, +1). Our route binary variables are (0, 1).
-            We apply the substitution below, then scale H to prevent COBYLA divergence.
-          </P>
-          <div className="mt-6 space-y-3 text-sm text-muted-foreground">
-            {[
-              'QUBO diagonal → qubit bias (h_i)',
-              'Off-diagonal entries → coupling (J_ij)',
-              'Penalty terms enforce capacity + time-window constraints',
-              'Numerical conditioning prevents gradient vanishing',
-            ].map((x) => (
-              <div key={x} className="flex items-start gap-3">
-                <ChevronRight size={14} className="mt-0.5 shrink-0" style={{ color: 'var(--primary)' }} />
-                {x}
-              </div>
-            ))}
-          </div>
-        </div>
-      }
-      R={
-        <div className="space-y-5">
-          <MathBlock>
-            <div className="mb-4 text-[10px] uppercase tracking-widest text-muted-foreground">Variable substitution</div>
-            <span style={{ color: 'var(--chart-3)' }}>x</span>
-            {' = (1 − '}
-            <span style={{ color: 'var(--chart-4)' }}>Z</span>
-            {') / 2'}
-          </MathBlock>
-          <MathBlock>
-            <div className="mb-4 text-[10px] uppercase tracking-widest text-muted-foreground">Numerical conditioning</div>
-            <span style={{ color: 'var(--primary)' }}>H<sub>norm</sub></span>
-            {' = H / max(|c|)'}
-          </MathBlock>
-          <MathBlock>
-            <div className="mb-4 text-[10px] uppercase tracking-widest text-muted-foreground">QUBO objective</div>
-            {'min '}
-            <span style={{ color: 'var(--chart-3)' }}>x</span>
-            <sup>T</sup>
-            <span style={{ color: 'var(--primary)' }}>Q</span>
-            <span style={{ color: 'var(--chart-3)' }}>x</span>
-            {'  s.t.  '}
-            <span style={{ color: 'var(--chart-3)' }}>x</span>
-            {' ∈ {0,1}'}
-            <sup>n</sup>
-          </MathBlock>
-        </div>
-      }
-    />
-  )
+ return <MathEquationSlide highlight="qubo" /> 
 }
 
 /* ─────────────────────────────────────────── slide 7 — nisq */
 function S07NISQ() {
-  return (
-    <Center>
-      <Ey>Near-Term Quantum Hardware</Ey>
-      <motion.div
-        className="font-serif italic font-light leading-none tracking-[-0.05em] my-8"
-        style={{ fontSize: 'clamp(4rem,13vw,10rem)', color: 'var(--foreground)' }}
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.8, delay: 0.1 }}
-      >
-        The{' '}
-        <span style={{ color: 'var(--primary)' }}>29-Qubit</span>
-        <br />Wall
-      </motion.div>
-      <div className="h-px w-full max-w-md bg-border mb-8" />
-      <div className="grid grid-cols-3 gap-6 max-w-2xl mb-8">
-        {[
-          { v: '2ⁿ × 16 B', label: 'Statevector memory / qubit', c: 'var(--destructive)' },
-          { v: 'LEAF = 4', label: 'Our recursion threshold', c: 'var(--primary)' },
-          { v: '0.37%', label: 'ibm_fez 2Q gate error rate', c: 'var(--chart-3)' },
-        ].map(({ v, label, c }) => (
-          <div key={label} className="text-center">
-            <div className="font-mono text-2xl tabular-nums" style={{ color: c }}>{v}</div>
-            <div className="mt-1.5 text-xs text-muted-foreground">{label}</div>
-          </div>
-        ))}
-      </div>
-      <P>
-        Simulating &gt;5 nodes on local RAM causes OOM. Physical QPU gate noise destroys deep circuits.
-        Pure quantum cannot route a 1,000-node city in 2026. We decompose instead.
-      </P>
-    </Center>
-  )
+ return <MathEquationSlide highlight="nisq" /> 
 }
 
 /* ─────────────────────────────────────────── slide 8 — dataset */

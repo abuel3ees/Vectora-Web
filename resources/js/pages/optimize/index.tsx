@@ -1222,7 +1222,7 @@ m.remove();
             markersRef.current = [];
 
             // Remove GPU node layers from previous result
-            for (const layerId of ['nodes-labels', 'nodes-circle']) {
+            for (const layerId of ['nodes-labels', 'nodes-circle', 'vrp-buildings']) {
                 if (map.getLayer(layerId)) {
 map.removeLayer(layerId);
 }
@@ -1247,6 +1247,29 @@ map.removeLayer(id);
 map.removeSource(src);
 }
             }
+
+            // --- 3D buildings — exaggerated at first visible zoom so they read immediately ---
+            // Mapbox composite tiles carry building geometry from zoom ~13; height is multiplied
+            // by 5× at that threshold and tapers to real height at zoom 16, making buildings
+            // dramatic the moment the fly-in lands rather than requiring a deep zoom.
+            map.addLayer({
+                id: 'vrp-buildings',
+                source: 'composite',
+                'source-layer': 'building',
+                filter: ['==', 'extrude', 'true'],
+                type: 'fill-extrusion',
+                minzoom: 12.5,
+                paint: {
+                    'fill-extrusion-color': '#222220',
+                    'fill-extrusion-height': [
+                        'interpolate', ['linear'], ['zoom'],
+                        13, ['*', ['coalesce', ['get', 'height'], 12], 5],
+                        16, ['coalesce', ['get', 'height'], 12],
+                    ] as unknown as number,
+                    'fill-extrusion-base': 0 as unknown as number,
+                    'fill-extrusion-opacity': 0.82,
+                },
+            });
 
             // --- layers: glow casing → crisp main → animated flow on top ---
             for (const r of result.routes) {
@@ -1394,7 +1417,7 @@ return;
             setTimeout(() => {
                 map.fitBounds(
                     [[b.west, b.south], [b.east, b.north]],
-                    { padding: 96, duration: 2400, pitch: 52, bearing: -18, essential: true },
+                    { padding: 96, duration: 2400, pitch: 60, bearing: -18, essential: true },
                 );
             }, 420);
 

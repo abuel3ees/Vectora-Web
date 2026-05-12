@@ -43,6 +43,7 @@ class DashboardController extends Controller
                 // Only include drivers who have sent at least one heartbeat
                 return $a->driver?->last_seen_at !== null;
             })
+            ->unique('driver_id')
             ->map(function ($a) {
                 $latest = $a->latestLocation;
                 $fallback = $this->fallbackLocationForAssignment($a);

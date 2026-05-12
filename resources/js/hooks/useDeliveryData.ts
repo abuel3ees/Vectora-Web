@@ -30,7 +30,7 @@ export function useDeliveryProofs(from?: string, to?: string) {
         if (from) params.append('from', from)
         if (to) params.append('to', to)
 
-        const response = await fetch(`/api/driver/delivery-proofs?${params.toString()}`)
+        const response = await fetch(`/delivery-proofs/photos?${params.toString()}`)
         if (!response.ok) {
           throw new Error(`Failed to fetch delivery proofs: ${response.statusText}`)
         }

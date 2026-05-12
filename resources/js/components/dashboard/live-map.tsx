@@ -90,6 +90,49 @@ export function LiveMap({ mapboxToken, initialLocations, selectedDriverId }: Pro
     mapboxgl.accessToken = mapboxToken
     const seed = initialCenterRef.current
 
+    if (!document.getElementById('vrpfr-popup-styles')) {
+      const style = document.createElement('style')
+      style.id = 'vrpfr-popup-styles'
+      style.textContent = `
+        .vrpfr-popup .mapboxgl-popup-content {
+          background: #1B1B19;
+          border: 1px solid rgb(44 44 41 / 0.7);
+          border-radius: 8px;
+          padding: 10px 14px;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+          color: #F0EFE9;
+        }
+        .vrpfr-popup .mapboxgl-popup-tip {
+          border-top-color: #1B1B19 !important;
+          border-bottom-color: #1B1B19 !important;
+        }
+        .vrpfr-popup.mapboxgl-popup-anchor-top .mapboxgl-popup-tip {
+          border-bottom-color: #1B1B19 !important;
+        }
+        .vrpfr-popup.mapboxgl-popup-anchor-bottom .mapboxgl-popup-tip {
+          border-top-color: #1B1B19 !important;
+        }
+        .vrpfr-popup.mapboxgl-popup-anchor-left .mapboxgl-popup-tip {
+          border-right-color: #1B1B19 !important;
+        }
+        .vrpfr-popup.mapboxgl-popup-anchor-right .mapboxgl-popup-tip {
+          border-left-color: #1B1B19 !important;
+        }
+        .vrpfr-popup .mapboxgl-popup-close-button {
+          color: #6B6B68;
+          font-size: 16px;
+          line-height: 1;
+          top: 6px;
+          right: 8px;
+        }
+        .vrpfr-popup .mapboxgl-popup-close-button:hover {
+          color: #F0EFE9;
+          background: transparent;
+        }
+      `
+      document.head.appendChild(style)
+    }
+
     mapRef.current = new mapboxgl.Map({
       container: mapContainerRef.current,
       style: 'mapbox://styles/mapbox/dark-v11',
@@ -156,14 +199,14 @@ export function LiveMap({ mapboxToken, initialLocations, selectedDriverId }: Pro
         onlineDot.style.width = '6px'
         onlineDot.style.height = '6px'
         onlineDot.style.borderRadius = '50%'
-        onlineDot.style.border = '1.5px solid #0f0f1a'
+        onlineDot.style.border = '1.5px solid #111110' // welcome canvas
         onlineDot.style.background = loc.is_online ? '#22c55e' : '#6b7280'
         onlineDot.style.transition = 'background-color 400ms ease'
         wrapper.appendChild(onlineDot)
 
         marker = new mapboxgl.Marker({ element: wrapper, rotationAlignment: 'map' })
           .setLngLat([loc.lng, loc.lat])
-          .setPopup(new mapboxgl.Popup({ offset: 20 }))
+          .setPopup(new mapboxgl.Popup({ offset: 20, className: 'vrpfr-popup', focusAfterOpen: false }))
           .addTo(mapRef.current!)
 
         markersRef.current.set(key, marker)
@@ -174,16 +217,16 @@ export function LiveMap({ mapboxToken, initialLocations, selectedDriverId }: Pro
       const sourceLabel = hasLiveLocation ? 'Live GPS' : 'Awaiting GPS · route position'
 
       marker.getPopup()?.setHTML(
-        `<div style="font-size:12px;line-height:1.6;min-width:190px;">
-          <strong style="font-size:13px">${loc.driver_name}</strong><br />
-          <span style="opacity:0.7">${loc.vehicle_label} · ${loc.status}</span><br />
+        `<div style="font-size:12px;line-height:1.6;min-width:190px;color:#F0EFE9">
+          <strong style="font-size:13px;color:#F0EFE9">${loc.driver_name}</strong><br />
+          <span style="color:#6B6B68">${loc.vehicle_label} · ${loc.status}</span><br />
           <span style="display:inline-flex;align-items:center;gap:4px;margin-top:2px">
             <span style="width:6px;height:6px;border-radius:50%;background:${loc.is_online ? '#22c55e' : '#6b7280'};display:inline-block"></span>
-            <span style="opacity:0.8">${loc.is_online ? 'Online now' : 'Offline'}</span>
+            <span style="color:#6B6B68">${loc.is_online ? 'Online now' : 'Offline'}</span>
           </span><br />
-          <span style="opacity:0.7">${sourceLabel}</span><br />
-          ${loc.speed != null ? `<span style="opacity:0.7">Speed: ${loc.speed.toFixed(1)} m/s</span><br />` : ''}
-          ${loc.accuracy != null ? `<span style="opacity:0.7">Accuracy: ±${loc.accuracy.toFixed(0)} m</span>` : ''}
+          <span style="color:#6B6B68">${sourceLabel}</span><br />
+          ${loc.speed != null ? `<span style="color:#6B6B68">Speed: ${loc.speed.toFixed(1)} m/s</span><br />` : ''}
+          ${loc.accuracy != null ? `<span style="color:#6B6B68">Accuracy: ±${loc.accuracy.toFixed(0)} m</span>` : ''}
         </div>`,
       )
 

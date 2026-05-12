@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition } from './../../wayfinder'
 /**
 * @see \App\Http\Controllers\DashboardController::liveLocations
-* @see app/Http/Controllers/DashboardController.php:271
+* @see app/Http/Controllers/DashboardController.php:272
 * @route '/dashboard/live-locations'
 */
 export const liveLocations = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -16,7 +16,7 @@ liveLocations.definition = {
 
 /**
 * @see \App\Http\Controllers\DashboardController::liveLocations
-* @see app/Http/Controllers/DashboardController.php:271
+* @see app/Http/Controllers/DashboardController.php:272
 * @route '/dashboard/live-locations'
 */
 liveLocations.url = (options?: RouteQueryOptions) => {
@@ -25,7 +25,7 @@ liveLocations.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\DashboardController::liveLocations
-* @see app/Http/Controllers/DashboardController.php:271
+* @see app/Http/Controllers/DashboardController.php:272
 * @route '/dashboard/live-locations'
 */
 liveLocations.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -35,7 +35,7 @@ liveLocations.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\DashboardController::liveLocations
-* @see app/Http/Controllers/DashboardController.php:271
+* @see app/Http/Controllers/DashboardController.php:272
 * @route '/dashboard/live-locations'
 */
 liveLocations.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -45,7 +45,7 @@ liveLocations.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => (
 
 /**
 * @see \App\Http\Controllers\DashboardController::liveLocations
-* @see app/Http/Controllers/DashboardController.php:271
+* @see app/Http/Controllers/DashboardController.php:272
 * @route '/dashboard/live-locations'
 */
 const liveLocationsForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -55,7 +55,7 @@ const liveLocationsForm = (options?: RouteQueryOptions): RouteFormDefinition<'ge
 
 /**
 * @see \App\Http\Controllers\DashboardController::liveLocations
-* @see app/Http/Controllers/DashboardController.php:271
+* @see app/Http/Controllers/DashboardController.php:272
 * @route '/dashboard/live-locations'
 */
 liveLocationsForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -65,7 +65,7 @@ liveLocationsForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'
 
 /**
 * @see \App\Http\Controllers\DashboardController::liveLocations
-* @see app/Http/Controllers/DashboardController.php:271
+* @see app/Http/Controllers/DashboardController.php:272
 * @route '/dashboard/live-locations'
 */
 liveLocationsForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({

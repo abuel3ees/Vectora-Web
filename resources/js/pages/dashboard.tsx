@@ -11,7 +11,6 @@ import { RecentActivity } from '@/components/dashboard/recent-activity'
 import type { Activity } from '@/components/dashboard/recent-activity'
 import { StatsCards } from '@/components/dashboard/stats-cards'
 import type { Stat } from '@/components/dashboard/stats-cards'
-import { DriverStatsCard } from '@/components/dashboard/driver-stats-card'
 import { DispatchPanel } from '@/components/dashboard/dispatch-panel'
 import AppLayout from '@/layouts/app/app-sidebar-layout'
 import { useEffect, useState } from 'react'
@@ -116,15 +115,6 @@ export default function DashboardPage({ stats, activeRoutes, fleet, recent, seri
         className="px-4 md:px-6"
       >
         <StatsCards stats={stats} />
-      </motion.section>
-
-      <motion.section
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.15 }}
-        className="px-4 md:px-6"
-      >
-        <DriverStatsCard />
       </motion.section>
 
       <motion.section

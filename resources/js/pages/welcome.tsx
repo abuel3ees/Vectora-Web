@@ -167,8 +167,8 @@ function Hero() {
               <Link
                 href="/dashboard"
                 className="inline-flex items-center gap-2 px-5 py-2.5 text-sm transition-all active:scale-[0.98]"
-                style={{ background: C.charcoal, color: '#fff', borderRadius: 5 }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = '#333')}
+                style={{ background: C.charcoal, color: C.btnText, borderRadius: 5 }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = C.btnHover)}
                 onMouseLeave={(e) => (e.currentTarget.style.background = C.charcoal)}
               >
                 Open the atlas
@@ -539,8 +539,8 @@ function Closing() {
             <Link
               href="/dashboard"
               className="inline-flex items-center gap-2 px-6 py-3 text-sm transition-all active:scale-[0.98]"
-              style={{ background: C.charcoal, color: '#fff', borderRadius: 5 }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = '#333')}
+              style={{ background: C.charcoal, color: C.btnText, borderRadius: 5 }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = C.btnHover)}
               onMouseLeave={(e) => (e.currentTarget.style.background = C.charcoal)}
             >
               Enter the atlas
