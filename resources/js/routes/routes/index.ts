@@ -1,5 +1,61 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../wayfinder'
 /**
+* @see \App\Http\Controllers\DispatchRouteController::cancelAllAssignments
+* @see app/Http/Controllers/DispatchRouteController.php:211
+* @route '/routes/cancel-all-assignments'
+*/
+export const cancelAllAssignments = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
+    url: cancelAllAssignments.url(options),
+    method: 'post',
+})
+
+cancelAllAssignments.definition = {
+    methods: ["post"],
+    url: '/routes/cancel-all-assignments',
+} satisfies RouteDefinition<["post"]>
+
+/**
+* @see \App\Http\Controllers\DispatchRouteController::cancelAllAssignments
+* @see app/Http/Controllers/DispatchRouteController.php:211
+* @route '/routes/cancel-all-assignments'
+*/
+cancelAllAssignments.url = (options?: RouteQueryOptions) => {
+    return cancelAllAssignments.definition.url + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\DispatchRouteController::cancelAllAssignments
+* @see app/Http/Controllers/DispatchRouteController.php:211
+* @route '/routes/cancel-all-assignments'
+*/
+cancelAllAssignments.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
+    url: cancelAllAssignments.url(options),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\DispatchRouteController::cancelAllAssignments
+* @see app/Http/Controllers/DispatchRouteController.php:211
+* @route '/routes/cancel-all-assignments'
+*/
+const cancelAllAssignmentsForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: cancelAllAssignments.url(options),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\DispatchRouteController::cancelAllAssignments
+* @see app/Http/Controllers/DispatchRouteController.php:211
+* @route '/routes/cancel-all-assignments'
+*/
+cancelAllAssignmentsForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: cancelAllAssignments.url(options),
+    method: 'post',
+})
+
+cancelAllAssignments.form = cancelAllAssignmentsForm
+
+/**
 * @see \App\Http\Controllers\DispatchRouteController::index
 * @see app/Http/Controllers/DispatchRouteController.php:14
 * @route '/routes'
@@ -632,7 +688,88 @@ destroyForm.delete = (args: { dispatchRoute: number | { id: number } } | [dispat
 
 destroy.form = destroyForm
 
+/**
+* @see \App\Http\Controllers\DispatchRouteController::cancelAssignments
+* @see app/Http/Controllers/DispatchRouteController.php:196
+* @route '/routes/{dispatchRoute}/cancel-assignments'
+*/
+export const cancelAssignments = (args: { dispatchRoute: number | { id: number } } | [dispatchRoute: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
+    url: cancelAssignments.url(args, options),
+    method: 'post',
+})
+
+cancelAssignments.definition = {
+    methods: ["post"],
+    url: '/routes/{dispatchRoute}/cancel-assignments',
+} satisfies RouteDefinition<["post"]>
+
+/**
+* @see \App\Http\Controllers\DispatchRouteController::cancelAssignments
+* @see app/Http/Controllers/DispatchRouteController.php:196
+* @route '/routes/{dispatchRoute}/cancel-assignments'
+*/
+cancelAssignments.url = (args: { dispatchRoute: number | { id: number } } | [dispatchRoute: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
+    if (typeof args === 'string' || typeof args === 'number') {
+        args = { dispatchRoute: args }
+    }
+
+    if (typeof args === 'object' && !Array.isArray(args) && 'id' in args) {
+        args = { dispatchRoute: args.id }
+    }
+
+    if (Array.isArray(args)) {
+        args = {
+            dispatchRoute: args[0],
+        }
+    }
+
+    args = applyUrlDefaults(args)
+
+    const parsedArgs = {
+        dispatchRoute: typeof args.dispatchRoute === 'object'
+        ? args.dispatchRoute.id
+        : args.dispatchRoute,
+    }
+
+    return cancelAssignments.definition.url
+            .replace('{dispatchRoute}', parsedArgs.dispatchRoute.toString())
+            .replace(/\/+$/, '') + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\DispatchRouteController::cancelAssignments
+* @see app/Http/Controllers/DispatchRouteController.php:196
+* @route '/routes/{dispatchRoute}/cancel-assignments'
+*/
+cancelAssignments.post = (args: { dispatchRoute: number | { id: number } } | [dispatchRoute: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
+    url: cancelAssignments.url(args, options),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\DispatchRouteController::cancelAssignments
+* @see app/Http/Controllers/DispatchRouteController.php:196
+* @route '/routes/{dispatchRoute}/cancel-assignments'
+*/
+const cancelAssignmentsForm = (args: { dispatchRoute: number | { id: number } } | [dispatchRoute: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: cancelAssignments.url(args, options),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\DispatchRouteController::cancelAssignments
+* @see app/Http/Controllers/DispatchRouteController.php:196
+* @route '/routes/{dispatchRoute}/cancel-assignments'
+*/
+cancelAssignmentsForm.post = (args: { dispatchRoute: number | { id: number } } | [dispatchRoute: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: cancelAssignments.url(args, options),
+    method: 'post',
+})
+
+cancelAssignments.form = cancelAssignmentsForm
+
 const routes = {
+    cancelAllAssignments: Object.assign(cancelAllAssignments, cancelAllAssignments),
     index: Object.assign(index, index),
     create: Object.assign(create, create),
     store: Object.assign(store, store),
@@ -640,6 +777,7 @@ const routes = {
     edit: Object.assign(edit, edit),
     update: Object.assign(update, update),
     destroy: Object.assign(destroy, destroy),
+    cancelAssignments: Object.assign(cancelAssignments, cancelAssignments),
 }
 
 export default routes

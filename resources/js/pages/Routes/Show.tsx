@@ -1,8 +1,8 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ArrowLeft,
-    CheckCircle2, XCircle, Clock, X, MapPin, Mail, ChevronLeft, ChevronRight, AlertCircle, PenLine,
+    CheckCircle2, XCircle, Clock, X, MapPin, Mail, ChevronLeft, ChevronRight, AlertCircle, PenLine, Ban,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -156,6 +156,20 @@ export default function Show({ dispatchRoute, assignments: rawAssignments }: Sho
 
     const [selectedId, setSelectedId] = useState<number | null>(assignments[0]?.id ?? null);
     const selected = assignments.find(a => a.id === selectedId) ?? assignments[0] ?? null;
+    const [cancelling, setCancelling] = useState(false);
+    const [confirmCancel, setConfirmCancel] = useState(false);
+
+    const activeCount = assignments.filter(a =>
+        ['pending', 'accepted', 'in_progress'].includes(a.status)
+    ).length;
+
+    function handleCancelAll() {
+        if (!confirmCancel) { setConfirmCancel(true); return; }
+        setCancelling(true);
+        router.post(`/routes/${dispatchRoute.id}/cancel-assignments`, {}, {
+            onFinish: () => { setCancelling(false); setConfirmCancel(false); },
+        });
+    }
 
     const totals = useMemo(() => {
         const photos     = assignments.reduce((s, a) => s + (a.photos?.filter(p => p.photo_url).length ?? 0), 0);
@@ -238,6 +252,22 @@ export default function Show({ dispatchRoute, assignments: rawAssignments }: Sho
                                     {totals.photos > 0 && <MiniStat value={String(totals.photos)} label="Photos" />}
                                     {totals.signatures > 0 && <MiniStat value={String(totals.signatures)} label="Signed" />}
                                 </div>
+                                {activeCount > 0 && (
+                                    <button
+                                        onClick={handleCancelAll}
+                                        disabled={cancelling}
+                                        onBlur={() => setConfirmCancel(false)}
+                                        className={cn(
+                                            'mt-3 w-full flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[10px] font-mono uppercase tracking-wider transition-all duration-150 border',
+                                            confirmCancel
+                                                ? 'bg-red-500/15 border-red-500/40 text-red-400 hover:bg-red-500/25'
+                                                : 'bg-transparent border-border/30 text-muted-foreground/50 hover:border-border/60 hover:text-muted-foreground'
+                                        )}
+                                    >
+                                        <Ban className="size-3 shrink-0" />
+                                        {cancelling ? 'Cancelling…' : confirmCancel ? `Confirm — clear ${activeCount}` : `Clear ${activeCount} active`}
+                                    </button>
+                                )}
                             </div>
 
                             {/* Driver list — scrollable */}

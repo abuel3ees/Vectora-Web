@@ -1,6 +1,6 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { motion } from 'framer-motion';
-import { Pencil, Trash2, Plus, Eye, ChevronDown, Filter, X, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import { Pencil, Trash2, Plus, Eye, ChevronDown, Filter, X, ArrowUp, ArrowDown, ArrowUpDown, Ban } from 'lucide-react';
 import React from 'react';
 import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
@@ -116,6 +116,7 @@ params.sort                 = opts.sortBy;
 export default function Index({ routes, filters: _filters, availableFilters }: IndexProps) {
     const [expanded, setExpanded]             = useState<number | null>(null);
     const [showFilters, setShowFilters]       = useState(false);
+    const [clearConfirm, setClearConfirm]     = useState(false);
     const [statusFilter, setStatusFilter]     = useState(_filters?.['filter[status]']    || '');
     const [nameSearch, setNameSearch]         = useState(_filters?.['filter[name]']      || '');
     const [sortBy, setSortBy]                 = useState(_filters?.sort                  || '-created_at');
@@ -127,6 +128,17 @@ export default function Index({ routes, filters: _filters, availableFilters }: I
     const pending    = routes.data.filter(r => r.status === 'pending').length;
     const inProgress = routes.data.filter(r => r.status === 'in_progress').length;
     const completed  = routes.data.filter(r => r.status === 'completed').length;
+    const activeCount = pending + inProgress;
+
+    const handleClearAll = useCallback(() => {
+        if (!clearConfirm) {
+            setClearConfirm(true);
+            setTimeout(() => setClearConfirm(false), 4000);
+            return;
+        }
+        setClearConfirm(false);
+        router.post('/routes/cancel-all-assignments');
+    }, [clearConfirm]);
 
     const hasActiveFilters = !!(statusFilter || nameSearch || algorithmFilter || driverFilter || dateFrom || dateTo || sortBy !== '-created_at');
 
@@ -190,12 +202,30 @@ return <ArrowDown className="size-3 text-primary" />;
                             Plan and observe every dispatch — a study of movement across the fleet.
                         </p>
                     </div>
-                    <Button asChild size="lg" variant="outline" className="rounded-full border-border/80 hover:bg-foreground hover:text-background transition-colors">
-                        <Link href="/routes/create">
-                            <Plus className="size-4" />
-                            New route
-                        </Link>
-                    </Button>
+                    <div className="flex items-center gap-3">
+                        {activeCount > 0 && (
+                            <Button
+                                onClick={handleClearAll}
+                                size="lg"
+                                variant="outline"
+                                className={cn(
+                                    "rounded-full transition-colors",
+                                    clearConfirm
+                                        ? "border-destructive/60 bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                                        : "border-border/80 hover:border-destructive/40 hover:text-destructive"
+                                )}
+                            >
+                                <Ban className="size-4" />
+                                {clearConfirm ? `Confirm — reset ${activeCount} drivers?` : `Clear ${activeCount} active`}
+                            </Button>
+                        )}
+                        <Button asChild size="lg" variant="outline" className="rounded-full border-border/80 hover:bg-foreground hover:text-background transition-colors">
+                            <Link href="/routes/create">
+                                <Plus className="size-4" />
+                                New route
+                            </Link>
+                        </Button>
+                    </div>
                 </div>
             </motion.section>
 

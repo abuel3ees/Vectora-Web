@@ -41,8 +41,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('presentation', fn () => inertia('presentation', ['mapboxToken' => config('services.mapbox.token')]))->name('presentation');
 
     Route::resource('users', UserController::class);
+    Route::post('routes/cancel-all-assignments', [DispatchRouteController::class, 'cancelAllAssignments'])
+        ->name('routes.cancel-all-assignments');
     Route::resource('routes', DispatchRouteController::class)
         ->parameters(['routes' => 'dispatchRoute']);
+    Route::post('routes/{dispatchRoute}/cancel-assignments', [DispatchRouteController::class, 'cancelAssignments'])
+        ->name('routes.cancel-assignments');
 
     Route::get('fleet', FleetController::class)->name('fleet');
     Route::get('analytics', AnalyticsController::class)->name('analytics');

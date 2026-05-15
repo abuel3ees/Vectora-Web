@@ -182,8 +182,42 @@ class DispatchRouteController extends Controller
     {
         $this->authorize('delete routes');
 
+        // Cancel any active driver assignments linked to this route so mobile
+        // drivers see it disappear on the next refresh instead of stale data.
+        DriverAssignment::where('instance', $dispatchRoute->name)
+            ->whereIn('status', ['pending', 'accepted', 'in_progress'])
+            ->update(['status' => 'cancelled']);
+
         $dispatchRoute->delete();
 
         return redirect()->route('routes.index')->with('success', 'Route deleted successfully.');
+    }
+
+    public function cancelAssignments(DispatchRoute $dispatchRoute)
+    {
+        $this->authorize('edit routes');
+
+        $count = DriverAssignment::where('instance', $dispatchRoute->name)
+            ->whereIn('status', ['pending', 'accepted', 'in_progress'])
+            ->count();
+
+        DriverAssignment::where('instance', $dispatchRoute->name)
+            ->whereIn('status', ['pending', 'accepted', 'in_progress'])
+            ->update(['status' => 'cancelled']);
+
+        return redirect()->back()->with('success', "$count assignment(s) cancelled — drivers will no longer see this route.");
+    }
+
+    public function cancelAllAssignments()
+    {
+        $this->authorize('edit routes');
+
+        $count = DriverAssignment::whereIn('status', ['pending', 'accepted', 'in_progress'])->count();
+
+        DriverAssignment::whereIn('status', ['pending', 'accepted', 'in_progress'])
+            ->update(['status' => 'cancelled']);
+
+        return redirect()->route('routes.index')
+            ->with('success', "$count active assignment(s) cleared — all drivers have been reset.");
     }
 }
