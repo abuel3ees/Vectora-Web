@@ -1,9 +1,17 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { motion } from 'framer-motion';
-import { Pencil, Trash2, Plus, Eye, ChevronDown, Filter, X, ArrowUp, ArrowDown, ArrowUpDown, Ban } from 'lucide-react';
+import { Pencil, Trash2, Plus, Eye, ChevronDown, Filter, X, ArrowUp, ArrowDown, ArrowUpDown, Ban, UserMinus } from 'lucide-react';
 import React from 'react';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import AppLayout from '@/layouts/app/app-sidebar-layout';
 import { cn } from '@/lib/utils';
 import type { DispatchRoute, Paginated, PaginationLink, RouteStatus } from '@/types';
@@ -130,6 +138,24 @@ export default function Index({ routes, filters: _filters, availableFilters }: I
     const completed  = routes.data.filter(r => r.status === 'completed').length;
     const activeCount = pending + inProgress;
 
+    // Per-driver active-assignment counts derived from the routes payload.
+    // Each route already carries its assignment list with a status — we flatten
+    // and aggregate so the admin can pull a single driver off the board.
+    const activeDrivers = useMemo(() => {
+        const map = new Map<number, { id: number; name: string; count: number }>();
+        for (const route of routes.data) {
+            for (const d of route.drivers ?? []) {
+                if (!['pending', 'accepted', 'in_progress'].includes(d.status)) continue;
+                const cur = map.get(d.driver_id);
+                if (cur) cur.count++;
+                else map.set(d.driver_id, { id: d.driver_id, name: d.name, count: 1 });
+            }
+        }
+        return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+    }, [routes.data]);
+
+    const [pendingDriverClear, setPendingDriverClear] = useState<number | null>(null);
+
     const handleClearAll = useCallback(() => {
         if (!clearConfirm) {
             setClearConfirm(true);
@@ -139,6 +165,16 @@ export default function Index({ routes, filters: _filters, availableFilters }: I
         setClearConfirm(false);
         router.post('/routes/cancel-all-assignments');
     }, [clearConfirm]);
+
+    const handleClearDriver = useCallback((driverId: number) => {
+        if (pendingDriverClear !== driverId) {
+            setPendingDriverClear(driverId);
+            setTimeout(() => setPendingDriverClear(curr => curr === driverId ? null : curr), 4000);
+            return;
+        }
+        setPendingDriverClear(null);
+        router.post(`/routes/cancel-driver-assignments/${driverId}`);
+    }, [pendingDriverClear]);
 
     const hasActiveFilters = !!(statusFilter || nameSearch || algorithmFilter || driverFilter || dateFrom || dateTo || sortBy !== '-created_at');
 
@@ -203,6 +239,56 @@ return <ArrowDown className="size-3 text-primary" />;
                         </p>
                     </div>
                     <div className="flex items-center gap-3">
+                        {activeDrivers.length > 0 && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        size="lg"
+                                        variant="outline"
+                                        className="rounded-full border-border/80 hover:border-destructive/40 hover:text-destructive"
+                                        title="Clear one driver's assignments"
+                                    >
+                                        <UserMinus className="size-4" />
+                                        Per driver
+                                        <ChevronDown className="size-3 opacity-60" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-72">
+                                    <DropdownMenuLabel className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
+                                        Clear assignments for…
+                                    </DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    {activeDrivers.map(d => {
+                                        const armed = pendingDriverClear === d.id;
+                                        return (
+                                            <DropdownMenuItem
+                                                key={d.id}
+                                                onSelect={(e) => {
+                                                    // Prevent the menu from closing on the first click
+                                                    // so the two-tap confirm pattern stays visible.
+                                                    if (!armed) e.preventDefault();
+                                                    handleClearDriver(d.id);
+                                                }}
+                                                className={cn(
+                                                    "flex items-center justify-between gap-3 cursor-pointer",
+                                                    armed && "bg-destructive/10 text-destructive focus:bg-destructive/15 focus:text-destructive"
+                                                )}
+                                            >
+                                                <span className="truncate">
+                                                    {armed ? `Confirm — clear ${d.name}?` : d.name}
+                                                </span>
+                                                <span className={cn(
+                                                    "shrink-0 text-[10px] uppercase tracking-[0.2em] tabular-nums",
+                                                    armed ? "text-destructive" : "text-muted-foreground/70"
+                                                )}>
+                                                    {d.count} active
+                                                </span>
+                                            </DropdownMenuItem>
+                                        );
+                                    })}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
                         {activeCount > 0 && (
                             <Button
                                 onClick={handleClearAll}

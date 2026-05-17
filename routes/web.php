@@ -39,10 +39,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard/live-locations', [DashboardController::class, 'liveLocations'])
         ->name('dashboard.live-locations');
     Route::get('presentation', fn () => inertia('presentation', ['mapboxToken' => config('services.mapbox.token')]))->name('presentation');
+    Route::get('demo', fn () => inertia('demo-mode'))->name('demo');
 
     Route::resource('users', UserController::class);
+    // NOTE: both cancel-all routes MUST be declared before Route::resource('routes', ...)
+    // otherwise the {dispatchRoute} wildcard swallows them.
     Route::post('routes/cancel-all-assignments', [DispatchRouteController::class, 'cancelAllAssignments'])
         ->name('routes.cancel-all-assignments');
+    Route::post('routes/cancel-driver-assignments/{driver}', [DispatchRouteController::class, 'cancelDriverAssignments'])
+        ->name('routes.cancel-driver-assignments');
     Route::resource('routes', DispatchRouteController::class)
         ->parameters(['routes' => 'dispatchRoute']);
     Route::post('routes/{dispatchRoute}/cancel-assignments', [DispatchRouteController::class, 'cancelAssignments'])

@@ -11,6 +11,12 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { MapRef } from 'react-map-gl/mapbox'
 import Map, { Layer, Source } from 'react-map-gl/mapbox'
 import 'mapbox-gl/dist/mapbox-gl.css'
+import { useAppearance } from '@/hooks/use-appearance'
+
+const mapboxStyleFor = (mode: 'light' | 'dark') =>
+  mode === 'light'
+    ? 'mapbox://styles/mapbox/light-v11'
+    : 'mapbox://styles/mapbox/dark-v11'
 import QAOAVisualization from '@/components/qaoa-visualization'
 
 /* ─────────────────────────────────────────── types */
@@ -194,6 +200,8 @@ function CursorDot() {
 /* ─────────────────────────────────────────── root */
 export default function Presentation({ mapboxToken }: Props) {
   const [cur, setCur] = useState(0)
+  const { resolvedAppearance } = useAppearance()
+  const mapStyle = mapboxStyleFor(resolvedAppearance)
 
   const go = useCallback((n: number) => {
     if (n < 0 || n >= TOTAL) {
@@ -465,13 +473,25 @@ function SSection({ idx }: { idx: number }) {
 
   return (
     <div className="relative flex items-center justify-center w-full h-full overflow-hidden">
+      {/* dark wash */}
+      <motion.div
+        className="absolute inset-0 pointer-events-none"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 1.1 }}
+        style={{ background: 'oklch(0.07 0.018 250)' }}
+      />
+
       {/* giant background numeral */}
-      <div
+      <motion.div
         className="absolute font-serif italic pointer-events-none select-none"
+        initial={{ opacity: 0, scale: 1.07 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 1.6, ease: [0.22, 1, 0.36, 1] }}
         style={{
-          fontSize: 'clamp(18rem, 38vw, 34rem)',
+          fontSize: 'clamp(22rem, 44vw, 40rem)',
           lineHeight: 1,
-          color: 'oklch(0.72 0.18 35 / 0.045)',
+          color: 'oklch(0.72 0.18 35 / 0.05)',
           top: '50%',
           left: '50%',
           transform: 'translate(-44%, -52%)',
@@ -479,45 +499,80 @@ function SSection({ idx }: { idx: number }) {
         }}
       >
         {roman}
-      </div>
+      </motion.div>
 
-      {/* horizontal rule top */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-border opacity-40" />
+      {/* top line — draws from left */}
+      <motion.div
+        className="absolute top-0 left-0 h-px"
+        style={{ background: 'oklch(0.72 0.18 35 / 0.5)' }}
+        initial={{ width: 0 }}
+        animate={{ width: '100%' }}
+        transition={{ duration: 1.3, ease: [0.22, 1, 0.36, 1] }}
+      />
 
-      <div className="relative text-center max-w-[640px] px-10">
+      <div className="relative text-center max-w-[680px] px-10">
         <motion.div
-          initial={{ opacity: 0, y: 22 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.4, delay: 0.15 }}
+          className="font-mono text-[10px] uppercase tracking-[0.42em] mb-7"
+          style={{ color: 'var(--primary)', opacity: 0.9 }}
         >
-          <div className="font-mono text-[10px] uppercase tracking-[0.32em] mb-5" style={{ color: 'var(--primary)' }}>
-            Part {roman}
-          </div>
-          <h2
-            className="font-serif italic font-light leading-none tracking-[-0.04em] text-foreground"
-            style={{ fontSize: 'clamp(3.8rem, 8.5vw, 6.5rem)' }}
-          >
-            {title}
-          </h2>
-          <div className="h-px w-16 mx-auto my-7 bg-border" />
-          <p className="text-sm leading-relaxed text-muted-foreground max-w-[46ch] mx-auto">
-            {tagline}
-          </p>
-          <div className="mt-9 flex flex-wrap justify-center gap-2">
-            {topics.map((topic) => (
-              <span
-                key={topic}
-                className="text-[10px] font-mono uppercase tracking-wider border border-border text-muted-foreground px-3 py-1.5 rounded"
-              >
-                {topic}
-              </span>
-            ))}
-          </div>
+          Part {roman}
+        </motion.div>
+
+        <motion.h2
+          className="font-serif italic font-light leading-none tracking-[-0.04em] text-foreground"
+          style={{ fontSize: 'clamp(4.8rem, 10vw, 8.5rem)' }}
+          initial={{ opacity: 0, y: 36 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.95, delay: 0.22, ease: [0.22, 1, 0.36, 1] }}
+        >
+          {title}
+        </motion.h2>
+
+        <motion.div
+          className="h-px mx-auto my-8"
+          style={{ background: 'var(--border)' }}
+          initial={{ width: 0 }}
+          animate={{ width: 72 }}
+          transition={{ duration: 0.9, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}
+        />
+
+        <motion.p
+          className="text-sm leading-relaxed text-muted-foreground max-w-[46ch] mx-auto"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, delay: 0.75 }}
+        >
+          {tagline}
+        </motion.p>
+
+        <motion.div
+          className="mt-10 flex flex-wrap justify-center gap-2"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.95 }}
+        >
+          {topics.map((topic) => (
+            <span
+              key={topic}
+              className="text-[10px] font-mono uppercase tracking-wider border border-border/70 text-muted-foreground px-3 py-1.5 rounded"
+            >
+              {topic}
+            </span>
+          ))}
         </motion.div>
       </div>
 
-      {/* horizontal rule bottom */}
-      <div className="absolute bottom-0 left-0 right-0 h-px bg-border opacity-40" />
+      {/* bottom line — draws from right */}
+      <motion.div
+        className="absolute bottom-0 right-0 h-px"
+        style={{ background: 'oklch(0.72 0.18 35 / 0.5)' }}
+        initial={{ width: 0 }}
+        animate={{ width: '100%' }}
+        transition={{ duration: 1.3, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+      />
     </div>
   )
 }
@@ -979,6 +1034,9 @@ const RC_GEOJSON_S8: GeoJSON.Feature = {
 }
 
 function S08Globe({ token }: { token: string }) {
+  const { resolvedAppearance } = useAppearance()
+  const mapStyle = mapboxStyleFor(resolvedAppearance)
+
   return (
     <Split
       L={
@@ -1015,7 +1073,7 @@ function S08Globe({ token }: { token: string }) {
             <Map
               mapboxAccessToken={token}
               initialViewState={{ longitude: RC_LON, latitude: RC_LAT, zoom: 13 }}
-              mapStyle="mapbox://styles/mapbox/dark-v11"
+              mapStyle={mapStyle}
               attributionControl={false}
               interactive={false}
               style={{ width: '100%', height: '100%' }}
@@ -1490,6 +1548,8 @@ function MapPanel({
   const mapRef = useRef<MapRef>(null)
   const stopRef = useRef(false)
   const meta = PANEL_META[badge]
+  const { resolvedAppearance } = useAppearance()
+  const mapStyle = mapboxStyleFor(resolvedAppearance)
 
   useEffect(() => {
     stopRef.current = false
@@ -1571,7 +1631,7 @@ function MapPanel({
           attributionControl={false}
           onLoad={handleLoad}
           style={{ width: '100%', height: '100%' }}
-          mapStyle="mapbox://styles/mapbox/dark-v11"
+          mapStyle={mapStyle}
         >
           <Source id={`routes-${badge}`} type="geojson" data={geojson}>
             <Layer

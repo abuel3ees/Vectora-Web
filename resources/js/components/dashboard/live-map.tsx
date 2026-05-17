@@ -2,6 +2,7 @@ import { Layers } from 'lucide-react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useEffect, useRef, useState } from 'react'
+import { useAppearance } from '@/hooks/use-appearance'
 
 type LiveLocation = {
   assignment_id: number | null
@@ -28,6 +29,13 @@ type Props = {
   selectedDriverId: number | null
 }
 
+// Mapbox style id keyed off the resolved appearance — keeps the basemap in sync
+// with light/dark mode the same way the mobile app does.
+const mapboxStyleFor = (mode: 'light' | 'dark') =>
+  mode === 'light'
+    ? 'mapbox://styles/mapbox/light-v11'
+    : 'mapbox://styles/mapbox/dark-v11'
+
 export function LiveMap({ mapboxToken, initialLocations, selectedDriverId }: Props) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
@@ -37,6 +45,7 @@ export function LiveMap({ mapboxToken, initialLocations, selectedDriverId }: Pro
   const lastSelectedDriverIdRef = useRef<number | null>(null)
   const [locations, setLocations] = useState<LiveLocation[]>(initialLocations)
   const [lastSync, setLastSync] = useState<Date | null>(null)
+  const { resolvedAppearance } = useAppearance()
 
   const lastSyncLabel = lastSync ? `${lastSync.toISOString().slice(11, 19)} UTC` : 'waiting'
 
@@ -135,7 +144,7 @@ export function LiveMap({ mapboxToken, initialLocations, selectedDriverId }: Pro
 
     mapRef.current = new mapboxgl.Map({
       container: mapContainerRef.current,
-      style: 'mapbox://styles/mapbox/dark-v11',
+      style: mapboxStyleFor(resolvedAppearance),
       center: seed ? [seed.lng, seed.lat] : [10.0, 52.0],
       zoom: seed ? 12 : 2,
       attributionControl: false,
@@ -152,7 +161,18 @@ export function LiveMap({ mapboxToken, initialLocations, selectedDriverId }: Pro
       mapRef.current?.remove()
       mapRef.current = null
     }
+    // resolvedAppearance is intentionally not in the dep list — we only want
+    // the initial style at map creation. The dedicated effect below handles
+    // theme switches via setStyle so we don't tear down the entire map.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapboxToken])
+
+  // Swap the basemap style live when the user toggles light/dark, without
+  // destroying the map instance (preserves markers, view, controls).
+  useEffect(() => {
+    if (!mapRef.current) return
+    mapRef.current.setStyle(mapboxStyleFor(resolvedAppearance))
+  }, [resolvedAppearance])
 
   useEffect(() => {
     if (!mapRef.current) {

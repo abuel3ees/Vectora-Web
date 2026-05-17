@@ -220,4 +220,28 @@ class DispatchRouteController extends Controller
         return redirect()->route('routes.index')
             ->with('success', "$count active assignment(s) cleared — all drivers have been reset.");
     }
+
+    /**
+     * Cancel every active assignment for a single driver. Used when a driver
+     * calls in sick / needs to be pulled off all routes without touching the
+     * rest of the fleet.
+     */
+    public function cancelDriverAssignments(int $driver)
+    {
+        $this->authorize('edit routes');
+
+        $driverModel = \App\Models\User::find($driver);
+        abort_unless($driverModel, 404, 'Driver not found.');
+
+        $query = DriverAssignment::where('driver_id', $driver)
+            ->whereIn('status', ['pending', 'accepted', 'in_progress']);
+
+        $count = $query->count();
+        $query->update(['status' => 'cancelled']);
+
+        return redirect()->back()->with(
+            'success',
+            "$count assignment(s) cleared for {$driverModel->name}."
+        );
+    }
 }

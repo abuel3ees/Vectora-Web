@@ -19,6 +19,7 @@ type NavEntry = {
     href: string;
     italic?: boolean;
     nested?: boolean;
+    presentationMode?: boolean;
 };
 
 const atelier: NavEntry[] = [
@@ -55,6 +56,13 @@ const registers: NavEntry[] = [
     { numeral: 'vii.', label: 'Analytics', href: '/analytics' },
     {
         numeral: 'viii.',
+        label: 'Demo Mode',
+        href: '/demo',
+        italic: true,
+        presentationMode: true,
+    },
+    {
+        numeral: 'ix.',
         label: 'Presentation',
         href: '/presentation',
         italic: true,
@@ -95,10 +103,17 @@ function NavItem({ entry, active }: { entry: NavEntry; active: boolean }) {
                 className={cn(
                     'font-display flex-1 tracking-tight transition-colors',
                     entry.nested ? 'text-sm' : 'text-base',
+                    entry.presentationMode && 'text-primary/90',
                 )}
             >
                 {entry.label}
             </span>
+            {entry.presentationMode && (
+                <span className="relative flex h-1.5 w-1.5 shrink-0 self-center">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
+                </span>
+            )}
         </Link>
     );
 }
@@ -123,6 +138,24 @@ export default function AppSidebarLayout({
         href.startsWith('#')
             ? false
             : url === href || url.startsWith(href + '/');
+
+    // Embed mode (rendered inside the /demo iframe): strip the sidebar and breadcrumb chrome.
+    const isEmbedded =
+        typeof window !== 'undefined' &&
+        (new URLSearchParams(window.location.search).get('embed') === '1' ||
+            window.self !== window.top);
+
+    if (isEmbedded) {
+        return (
+            <main className="flex h-screen w-full flex-col bg-background">
+                <div className="flex-1 overflow-auto">
+                    <div className="flex w-full flex-col gap-6 px-0 py-6">
+                        {children}
+                    </div>
+                </div>
+            </main>
+        );
+    }
 
     return (
         <SidebarProvider style={{ '--sidebar-width': '12rem' } as React.CSSProperties}>

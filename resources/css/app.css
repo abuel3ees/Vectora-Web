@@ -5,40 +5,41 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Exact welcome.tsx palette — canvas #111110, surface #1B1B19, charcoal #F0EFE9, coral #D97045 */
-  --background: #111110;
-  --foreground: #F0EFE9;
-  --card: #1B1B19;
-  --card-foreground: #F0EFE9;
-  --popover: #1B1B19;
-  --popover-foreground: #F0EFE9;
-  --primary: #D97045;
-  --primary-foreground: #111110;
-  --secondary: #222220;
-  --secondary-foreground: #F0EFE9;
-  --muted: #1F1F1D;
-  --muted-foreground: #6B6B68;
-  --accent: #D97045;
-  --accent-foreground: #111110;
+  /* Light — warm paper, ink, terracotta signal. Mirrors the mobile light
+     palette so the two apps feel like one product. */
+  --background: #F5F2EC;
+  --foreground: #15140F;
+  --card: #FBF8F2;
+  --card-foreground: #15140F;
+  --popover: #FBF8F2;
+  --popover-foreground: #15140F;
+  --primary: #C45A30;
+  --primary-foreground: #F5F2EC;
+  --secondary: #EFEBE2;
+  --secondary-foreground: #15140F;
+  --muted: #EFEBE2;
+  --muted-foreground: #8A877E;
+  --accent: #C45A30;
+  --accent-foreground: #F5F2EC;
   --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: #F0EFE9;
-  --border: #2C2C29;
-  --input: #1B1B19;
-  --ring: #D97045;
-  --chart-1: #D97045;
+  --destructive-foreground: #F5F2EC;
+  --border: #DDD8CB;
+  --input: #EFEBE2;
+  --ring: #C45A30;
+  --chart-1: #C45A30;
   --chart-2: oklch(0.65 0.15 200);
   --chart-3: oklch(0.75 0.12 80);
   --chart-4: oklch(0.60 0.20 320);
   --chart-5: oklch(0.55 0.18 180);
   --radius: 0.5rem;
-  --sidebar: #0E0E0D;
-  --sidebar-foreground: #F0EFE9;
-  --sidebar-primary: #D97045;
-  --sidebar-primary-foreground: #111110;
-  --sidebar-accent: #1B1B19;
-  --sidebar-accent-foreground: #F0EFE9;
-  --sidebar-border: #2C2C29;
-  --sidebar-ring: #D97045;
+  --sidebar: #EFEBE2;
+  --sidebar-foreground: #15140F;
+  --sidebar-primary: #C45A30;
+  --sidebar-primary-foreground: #F5F2EC;
+  --sidebar-accent: #FBF8F2;
+  --sidebar-accent-foreground: #15140F;
+  --sidebar-border: #DDD8CB;
+  --sidebar-ring: #C45A30;
 }
 
 .dark {
@@ -129,6 +130,9 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-image: radial-gradient(ellipse 70% 50% at 50% -20%, rgb(196 90 48 / 0.07), transparent 70%);
+  }
+  .dark body {
     background-image: radial-gradient(ellipse 70% 50% at 50% -20%, rgb(217 112 69 / 0.06), transparent 70%);
   }
   .font-serif { font-family: var(--font-serif); }
@@ -149,6 +153,13 @@
     100% { background-position: 200% 0; }
   }
   .shimmer {
+    /* Subtle highlight that reads on either background: dark sweep on light,
+       light sweep on dark. */
+    background: linear-gradient(110deg, transparent 40%, oklch(0 0 0 / 0.06) 50%, transparent 60%);
+    background-size: 200% 100%;
+    animation: shimmer 3s linear infinite;
+  }
+  .dark .shimmer {
     background: linear-gradient(110deg, transparent 40%, oklch(1 0 0 / 0.08) 50%, transparent 60%);
     background-size: 200% 100%;
     animation: shimmer 3s linear infinite;
@@ -185,10 +196,16 @@
     position: absolute;
     left: 50%; top: 50%;
     width: 140%; height: 140%;
-    background: conic-gradient(from 0deg, transparent 0deg, rgb(217 112 69 / 0.35) 20deg, transparent 60deg);
+    background: conic-gradient(from 0deg, transparent 0deg, rgb(196 90 48 / 0.28) 20deg, transparent 60deg);
     border-radius: 9999px;
     animation: vx-radar 3.2s linear infinite;
     pointer-events: none;
+    /* Multiply lays the sweep on top of a light background; the dark variant
+       below uses screen so it still glows against deep navy. */
+    mix-blend-mode: multiply;
+  }
+  .dark .vx-radar {
+    background: conic-gradient(from 0deg, transparent 0deg, rgb(217 112 69 / 0.35) 20deg, transparent 60deg);
     mix-blend-mode: screen;
   }
 

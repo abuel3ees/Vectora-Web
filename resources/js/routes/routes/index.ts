@@ -56,6 +56,80 @@ cancelAllAssignmentsForm.post = (options?: RouteQueryOptions): RouteFormDefiniti
 cancelAllAssignments.form = cancelAllAssignmentsForm
 
 /**
+* @see \App\Http\Controllers\DispatchRouteController::cancelDriverAssignments
+* @see app/Http/Controllers/DispatchRouteController.php:229
+* @route '/routes/cancel-driver-assignments/{driver}'
+*/
+export const cancelDriverAssignments = (args: { driver: string | number } | [driver: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
+    url: cancelDriverAssignments.url(args, options),
+    method: 'post',
+})
+
+cancelDriverAssignments.definition = {
+    methods: ["post"],
+    url: '/routes/cancel-driver-assignments/{driver}',
+} satisfies RouteDefinition<["post"]>
+
+/**
+* @see \App\Http\Controllers\DispatchRouteController::cancelDriverAssignments
+* @see app/Http/Controllers/DispatchRouteController.php:229
+* @route '/routes/cancel-driver-assignments/{driver}'
+*/
+cancelDriverAssignments.url = (args: { driver: string | number } | [driver: string | number ] | string | number, options?: RouteQueryOptions) => {
+    if (typeof args === 'string' || typeof args === 'number') {
+        args = { driver: args }
+    }
+
+    if (Array.isArray(args)) {
+        args = {
+            driver: args[0],
+        }
+    }
+
+    args = applyUrlDefaults(args)
+
+    const parsedArgs = {
+        driver: args.driver,
+    }
+
+    return cancelDriverAssignments.definition.url
+            .replace('{driver}', parsedArgs.driver.toString())
+            .replace(/\/+$/, '') + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\DispatchRouteController::cancelDriverAssignments
+* @see app/Http/Controllers/DispatchRouteController.php:229
+* @route '/routes/cancel-driver-assignments/{driver}'
+*/
+cancelDriverAssignments.post = (args: { driver: string | number } | [driver: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
+    url: cancelDriverAssignments.url(args, options),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\DispatchRouteController::cancelDriverAssignments
+* @see app/Http/Controllers/DispatchRouteController.php:229
+* @route '/routes/cancel-driver-assignments/{driver}'
+*/
+const cancelDriverAssignmentsForm = (args: { driver: string | number } | [driver: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: cancelDriverAssignments.url(args, options),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\DispatchRouteController::cancelDriverAssignments
+* @see app/Http/Controllers/DispatchRouteController.php:229
+* @route '/routes/cancel-driver-assignments/{driver}'
+*/
+cancelDriverAssignmentsForm.post = (args: { driver: string | number } | [driver: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: cancelDriverAssignments.url(args, options),
+    method: 'post',
+})
+
+cancelDriverAssignments.form = cancelDriverAssignmentsForm
+
+/**
 * @see \App\Http\Controllers\DispatchRouteController::index
 * @see app/Http/Controllers/DispatchRouteController.php:14
 * @route '/routes'
@@ -770,6 +844,7 @@ cancelAssignments.form = cancelAssignmentsForm
 
 const routes = {
     cancelAllAssignments: Object.assign(cancelAllAssignments, cancelAllAssignments),
+    cancelDriverAssignments: Object.assign(cancelDriverAssignments, cancelDriverAssignments),
     index: Object.assign(index, index),
     create: Object.assign(create, create),
     store: Object.assign(store, store),

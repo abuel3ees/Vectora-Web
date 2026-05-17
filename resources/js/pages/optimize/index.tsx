@@ -5,8 +5,14 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
+import { useAppearance } from '@/hooks/use-appearance';
 import AppLayout from '@/layouts/app/app-sidebar-layout';
 import { cn } from '@/lib/utils';
+
+const mapboxStyleFor = (mode: 'light' | 'dark') =>
+    mode === 'light'
+        ? 'mapbox://styles/mapbox/light-v11'
+        : 'mapbox://styles/mapbox/dark-v11';
 
 type Instance = { key: string; label: string; size: number; group?: string; deletable?: boolean };
 type RouteOut = {
@@ -176,10 +182,23 @@ export default function OptimizePage({ instances, algorithms, mapboxToken, drive
     const elapsedRef = useRef<number>(0);
     const vehicleMarkersRef = useRef<mapboxgl.Marker[]>([]);
     const animRef = useRef<number | null>(null);
-    const initialInstanceKey = instances[0]?.key ?? 'rioclaro';
+    // URL-param overrides (used by the /demo iframe to auto-load a specific solve)
+    const urlParams =
+        typeof window !== 'undefined'
+            ? new URLSearchParams(window.location.search)
+            : new URLSearchParams();
+    const initialInstanceKey =
+        urlParams.get('instance') || instances[0]?.key || 'rioclaro';
+    const initialAlgorithm = urlParams.get('algo') || 'savings_parallel';
+    const initialKParam = urlParams.get('k');
     const [instance, setInstance] = useState(initialInstanceKey);
-    const [algorithm, setAlgorithm] = useState('savings_parallel');
-    const [k, setK] = useState(() => recommendedVehiclesForSize(instances.find((inst) => inst.key === initialInstanceKey)?.size ?? 0) ?? 7);
+    const [algorithm, setAlgorithm] = useState(initialAlgorithm);
+    const [k, setK] = useState(() =>
+        initialKParam
+            ? parseInt(initialKParam, 10)
+            : recommendedVehiclesForSize(instances.find((inst) => inst.key === initialInstanceKey)?.size ?? 0) ?? 7,
+    );
+    const autoSubmitFiredRef = useRef(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [result, setResult] = useState<SolveResult | null>(null);
@@ -326,6 +345,7 @@ solveCache.current.set(key.slice(4), JSON.parse(raw) as SolveResult);
     const revealAnimRef = useRef<number | null>(null);
     const globeRotateRef = useRef<number | null>(null);
     const nodeLayerHandlersAdded = useRef(false);
+    const { resolvedAppearance } = useAppearance();
 
     const csrf = () =>
         (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement | null)?.content ?? '';
@@ -750,6 +770,19 @@ setProgress(json.progress);
         }
     };
 
+    // Auto-submit when ?auto=1 is in the URL (used by /demo iframe). Fires once after the
+    // localStorage cache has had a beat to hydrate so a cached solve renders instantly.
+    useEffect(() => {
+        if (autoSubmitFiredRef.current) return;
+        if (urlParams.get('auto') !== '1') return;
+        const t = setTimeout(() => {
+            autoSubmitFiredRef.current = true;
+            submit();
+        }, 600);
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     const compareAllAlgorithms = async () => {
         setComparing(true);
         setError(null);
@@ -1116,7 +1149,7 @@ return;
         try {
             map = new mapboxgl.Map({
                 container: mapContainer.current,
-                style: 'mapbox://styles/mapbox/dark-v11',
+                style: mapboxStyleFor(resolvedAppearance),
                 center: [-47.556, -22.411],
                 zoom: 1.8,
                 pitch: 0,
@@ -1182,7 +1215,16 @@ map.setBearing(bearing);
             map.remove();
             mapRef.current = null;
         };
+        // resolvedAppearance used only at init; theme switches handled below.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [mapboxToken]);
+
+    // Live-swap basemap when light/dark toggles without tearing down the map.
+    useEffect(() => {
+        const map = mapRef.current;
+        if (!map) return;
+        map.setStyle(mapboxStyleFor(resolvedAppearance));
+    }, [resolvedAppearance]);
 
     useEffect(() => {
         if (!result) {
@@ -1691,8 +1733,22 @@ return;
 
         const activeAssignments = overrideAssignments ?? assignments;
 
+        // Fill any unassigned routes round-robin so every node reaches a driver.
+        // Without this, routes the user didn't manually pick a driver for get
+        // silently dropped (e.g. 30 routes / 3 drivers → 27 routes lost).
+        const filled: Record<number, number | ''> = { ...activeAssignments };
+        if (drivers.length > 0) {
+            let cursor = 0;
+            for (const r of result.routes) {
+                if (!filled[r.route_index]) {
+                    filled[r.route_index] = drivers[cursor % drivers.length].id;
+                    cursor++;
+                }
+            }
+        }
+
         const routes = result.routes
-            .map((r) => ({ r, driverId: activeAssignments[r.route_index] }))
+            .map((r) => ({ r, driverId: filled[r.route_index] }))
             .filter((x) => x.driverId)
             .map(({ r, driverId }) => ({
                 vehicle_index: r.route_index,
@@ -2075,6 +2131,7 @@ return [];
                                     )}
                                     <button
                                         type="button"
+                                        data-test="optimize-compose"
                                         onClick={submit}
                                         disabled={loading}
                                         className={cn(

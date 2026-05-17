@@ -3,8 +3,14 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Spinner } from '@/components/ui/spinner';
+import { useAppearance } from '@/hooks/use-appearance';
 import AppLayout from '@/layouts/app/app-sidebar-layout';
 import { cn } from '@/lib/utils';
+
+const mapboxStyleFor = (mode: 'light' | 'dark') =>
+    mode === 'light'
+        ? 'mapbox://styles/mapbox/light-v11'
+        : 'mapbox://styles/mapbox/dark-v11';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -124,6 +130,7 @@ export default function OperationsPage({ mapboxToken, drivers, initial }: PagePr
     const mapRef = useRef<mapboxgl.Map | null>(null);
     const markersRef = useRef<Record<number, mapboxgl.Marker>>({});
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const { resolvedAppearance } = useAppearance();
 
     const csrf = () =>
         (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement | null)?.content ?? '';
@@ -138,7 +145,7 @@ return;
         mapboxgl.accessToken = mapboxToken;
         const map = new mapboxgl.Map({
             container: mapContainer.current,
-            style: 'mapbox://styles/mapbox/dark-v11',
+            style: mapboxStyleFor(resolvedAppearance),
             center: [-47.556, -22.411],
             zoom: 10,
             antialias: true,
@@ -150,13 +157,17 @@ return;
             map.resize();
 
             try {
-                map.setFog({
-                    color: 'rgb(8,8,12)',
-                    'high-color': 'rgb(18,18,28)',
-                    'horizon-blend': 0.06,
-                    'space-color': '#02020a',
-                    'star-intensity': 0.6,
-                } as unknown as Parameters<mapboxgl.Map['setFog']>[0]);
+                // Fog colors only make sense over the dark basemap; on light we
+                // skip the atmospheric tint so the map stays clean.
+                if (resolvedAppearance === 'dark') {
+                    map.setFog({
+                        color: 'rgb(8,8,12)',
+                        'high-color': 'rgb(18,18,28)',
+                        'horizon-blend': 0.06,
+                        'space-color': '#02020a',
+                        'star-intensity': 0.6,
+                    } as unknown as Parameters<mapboxgl.Map['setFog']>[0]);
+                }
             } catch { /* optional */ }
         });
 
@@ -169,7 +180,32 @@ return;
             map.remove();
             mapRef.current = null;
         };
+        // resolvedAppearance read only at init; theme switches handled in the
+        // dedicated effect below to avoid tearing down the whole map.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [mapboxToken]);
+
+    // Hot-swap the basemap when the user toggles light/dark.
+    useEffect(() => {
+        const map = mapRef.current;
+        if (!map) return;
+        map.setStyle(mapboxStyleFor(resolvedAppearance));
+        map.once('style.load', () => {
+            try {
+                if (resolvedAppearance === 'dark') {
+                    map.setFog({
+                        color: 'rgb(8,8,12)',
+                        'high-color': 'rgb(18,18,28)',
+                        'horizon-blend': 0.06,
+                        'space-color': '#02020a',
+                        'star-intensity': 0.6,
+                    } as unknown as Parameters<mapboxgl.Map['setFog']>[0]);
+                } else {
+                    map.setFog(null as unknown as Parameters<mapboxgl.Map['setFog']>[0]);
+                }
+            } catch { /* optional */ }
+        });
+    }, [resolvedAppearance]);
 
     // ── Update driver markers on map ───────────────────────────────────────────
 
