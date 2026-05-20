@@ -20,7 +20,13 @@ Route::middleware('guest')->prefix('webauthn')->name('webauthn.')->group(functio
     Route::post('login',         [App\Http\Controllers\WebAuthn\WebAuthnLoginController::class, 'login'])->name('login');
 });
 
-Route::middleware(['auth', 'verified'])->group(function () {
+// Drivers (and any non-dispatcher) land here instead of the web dashboard.
+// Must stay OUTSIDE the 'dispatcher' middleware to avoid a redirect loop.
+Route::middleware(['auth'])->group(function () {
+    Route::inertia('get-the-app', 'DriverAppGate')->name('driver.app');
+});
+
+Route::middleware(['auth', 'verified', 'dispatcher'])->group(function () {
     // Fingerprint / WebAuthn step-up authentication
     Route::prefix('webauthn')->name('webauthn.')->group(function () {
         Route::post('register/options', [App\Http\Controllers\WebAuthnConfirmController::class, 'registerOptions'])->name('register.options');
@@ -58,6 +64,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('delivery-proofs', 'DeliveryProofs')->name('delivery-proofs');
     Route::get('delivery-proofs/photos', [DriverAssignmentController::class, 'getAllDeliveryProofs'])
         ->name('delivery-proofs.photos');
+    Route::delete('delivery-proofs/{photo}', [DriverAssignmentController::class, 'deleteDeliveryProof'])
+        ->whereNumber('photo')
+        ->name('delivery-proofs.destroy');
 
     Route::get('operations', [App\Http\Controllers\OperationsController::class, 'show'])->name('operations');
     Route::get('operations/live', [App\Http\Controllers\OperationsController::class, 'live'])->name('operations.live');

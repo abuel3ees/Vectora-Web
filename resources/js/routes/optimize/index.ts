@@ -59,7 +59,7 @@ solve.form = solveForm
 
 /**
 * @see \App\Http\Controllers\DriverAssignmentController::dispatch
-* @see app/Http/Controllers/DriverAssignmentController.php:17
+* @see app/Http/Controllers/DriverAssignmentController.php:18
 * @route '/optimize/dispatch'
 */
 export const dispatch = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -74,7 +74,7 @@ dispatch.definition = {
 
 /**
 * @see \App\Http\Controllers\DriverAssignmentController::dispatch
-* @see app/Http/Controllers/DriverAssignmentController.php:17
+* @see app/Http/Controllers/DriverAssignmentController.php:18
 * @route '/optimize/dispatch'
 */
 dispatch.url = (options?: RouteQueryOptions) => {
@@ -83,7 +83,7 @@ dispatch.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\DriverAssignmentController::dispatch
-* @see app/Http/Controllers/DriverAssignmentController.php:17
+* @see app/Http/Controllers/DriverAssignmentController.php:18
 * @route '/optimize/dispatch'
 */
 dispatch.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -93,7 +93,7 @@ dispatch.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
 /**
 * @see \App\Http\Controllers\DriverAssignmentController::dispatch
-* @see app/Http/Controllers/DriverAssignmentController.php:17
+* @see app/Http/Controllers/DriverAssignmentController.php:18
 * @route '/optimize/dispatch'
 */
 const dispatchForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -103,7 +103,7 @@ const dispatchForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> 
 
 /**
 * @see \App\Http\Controllers\DriverAssignmentController::dispatch
-* @see app/Http/Controllers/DriverAssignmentController.php:17
+* @see app/Http/Controllers/DriverAssignmentController.php:18
 * @route '/optimize/dispatch'
 */
 dispatchForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({

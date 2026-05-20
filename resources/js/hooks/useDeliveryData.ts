@@ -27,10 +27,17 @@ export function useDeliveryProofs(from?: string, to?: string) {
         setError(null)
 
         const params = new URLSearchParams()
-        if (from) params.append('from', from)
-        if (to) params.append('to', to)
+
+        if (from) {
+params.append('from', from)
+}
+
+        if (to) {
+params.append('to', to)
+}
 
         const response = await fetch(`/delivery-proofs/photos?${params.toString()}`)
+
         if (!response.ok) {
           throw new Error(`Failed to fetch delivery proofs: ${response.statusText}`)
         }
@@ -48,7 +55,9 @@ export function useDeliveryProofs(from?: string, to?: string) {
     fetchProofs()
   }, [from, to])
 
-  return { photos, isLoading, error }
+  const removePhoto = (id: number) => setPhotos((prev) => prev.filter((p) => p.id !== id))
+
+  return { photos, isLoading, error, removePhoto }
 }
 
 export function useDriverStats() {
@@ -63,6 +72,7 @@ export function useDriverStats() {
         setError(null)
 
         const response = await fetch('/api/driver/statistics/summary')
+
         if (!response.ok) {
           throw new Error(`Failed to fetch driver stats: ${response.statusText}`)
         }

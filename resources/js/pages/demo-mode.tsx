@@ -1934,7 +1934,7 @@ function IPhoneFrame({ children }: { children: React.ReactNode }) {
   )
 }
 
-function IPhoneShell({ appOpen, stopsShown }: { appOpen: boolean; stopsShown: number }) {
+export function IPhoneShell({ appOpen, stopsShown }: { appOpen: boolean; stopsShown: number }) {
   return (
     <IPhoneFrame>
       {/* App canvas */}

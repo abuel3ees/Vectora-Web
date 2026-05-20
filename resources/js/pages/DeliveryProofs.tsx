@@ -1,10 +1,14 @@
+import { Head } from '@inertiajs/react'
 import { formatDistanceToNow } from 'date-fns'
 import { motion } from 'framer-motion'
-import { Calendar, Filter, User, MapPin, Clock, Download } from 'lucide-react'
+import { Filter, User, MapPin, Clock, Download, Trash2 } from 'lucide-react'
 import { useState, useMemo } from 'react'
-import { Head } from '@inertiajs/react'
+import { toast } from 'sonner'
 import AppLayout from '@/layouts/app/app-sidebar-layout'
 import { useDeliveryProofs } from '../hooks/useDeliveryData'
+
+const csrf = () =>
+  (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement | null)?.content ?? ''
 
 type DeliveryPhoto = {
   id: number
@@ -27,13 +31,51 @@ export function DeliveryProofsPage() {
   const [dateFrom, setDateFrom] = useState<string>('')
   const [dateTo, setDateTo] = useState<string>('')
 
-  const { photos, isLoading, error } = useDeliveryProofs(dateFrom || undefined, dateTo || undefined)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+
+  const { photos, isLoading, error, removePhoto } = useDeliveryProofs(dateFrom || undefined, dateTo || undefined)
+
+  async function handleDelete(photo: DeliveryPhoto) {
+    if (!window.confirm('Delete this delivery proof? This permanently removes the photo and signature.')) {
+return
+}
+
+    setDeletingId(photo.id)
+
+    try {
+      const res = await fetch(`/delivery-proofs/${photo.id}`, {
+        method: 'DELETE',
+        headers: { 'X-CSRF-TOKEN': csrf(), Accept: 'application/json' },
+      })
+
+      if (!res.ok) {
+throw new Error(`Failed to delete: ${res.statusText}`)
+}
+
+      removePhoto(photo.id)
+      setSelectedPhoto((cur) => (cur?.id === photo.id ? null : cur))
+      toast.success('Delivery proof deleted')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete delivery proof')
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   const filteredPhotos = useMemo(() => {
     return photos.filter((p) => {
-      if (filterDriver && p.driver_name !== filterDriver) return false
-      if (filterVerified === 'verified' && !p.location_verified) return false
-      if (filterVerified === 'unverified' && p.location_verified) return false
+      if (filterDriver && p.driver_name !== filterDriver) {
+return false
+}
+
+      if (filterVerified === 'verified' && !p.location_verified) {
+return false
+}
+
+      if (filterVerified === 'unverified' && p.location_verified) {
+return false
+}
+
       return true
     })
   }, [photos, filterDriver, filterVerified])
@@ -154,6 +196,19 @@ export function DeliveryProofsPage() {
                       {photo.location_distance_m.toFixed(0)}m from location
                     </div>
                   )}
+
+                  {/* Delete button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDelete(photo)
+                    }}
+                    disabled={deletingId === photo.id}
+                    title="Delete delivery proof"
+                    className="absolute top-2 right-2 p-1.5 rounded-md bg-black/60 text-white opacity-0 group-hover:opacity-100 hover:bg-red-600 transition disabled:opacity-50"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
 
                 {/* Metadata */}
@@ -174,14 +229,29 @@ export function DeliveryProofsPage() {
 
       {/* Lightbox */}
       {selectedPhoto && (
-        <PhotoLightbox photo={selectedPhoto} onClose={() => setSelectedPhoto(null)} />
+        <PhotoLightbox
+          photo={selectedPhoto}
+          onClose={() => setSelectedPhoto(null)}
+          onDelete={() => handleDelete(selectedPhoto)}
+          isDeleting={deletingId === selectedPhoto.id}
+        />
       )}
       </div>
     </AppLayout>
   )
 }
 
-function PhotoLightbox({ photo, onClose }: { photo: DeliveryPhoto; onClose: () => void }) {
+function PhotoLightbox({
+  photo,
+  onClose,
+  onDelete,
+  isDeleting,
+}: {
+  photo: DeliveryPhoto
+  onClose: () => void
+  onDelete: () => void
+  isDeleting: boolean
+}) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -236,6 +306,14 @@ function PhotoLightbox({ photo, onClose }: { photo: DeliveryPhoto; onClose: () =
           )}
 
           <div className="flex justify-end gap-2">
+            <button
+              onClick={onDelete}
+              disabled={isDeleting}
+              className="mr-auto px-4 py-2 rounded-lg border border-red-500/40 text-red-600 text-sm font-medium hover:bg-red-500/10 transition-colors flex items-center gap-2 disabled:opacity-50"
+            >
+              <Trash2 className="w-4 h-4" />
+              {isDeleting ? 'Deleting…' : 'Delete'}
+            </button>
             <button
               onClick={onClose}
               className="px-4 py-2 rounded-lg border border-border/60 text-sm font-medium hover:bg-muted transition-colors"

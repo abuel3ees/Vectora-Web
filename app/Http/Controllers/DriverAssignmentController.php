@@ -7,6 +7,7 @@ use App\Models\DeliveryPhoto;
 use App\Models\DriverLocation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class DriverAssignmentController extends Controller
 {
@@ -285,11 +286,13 @@ class DriverAssignmentController extends Controller
             $locationVerified = $distanceM <= 50;
         }
 
-        // Store the photo in storage/app/public/delivery-photos/{assignmentId}/{stopIndex}/{timestamp}.jpg
+        // Store the photo in delivery-photos/{assignmentId}/{stopIndex}/{timestamp}.jpg
+        // on the configured delivery disk (local "public" by default, DigitalOcean Spaces in prod).
+        $disk = config('filesystems.delivery_disk');
         $directory = "delivery-photos/{$assignment}/{$stopIndex}";
         $filename = now()->timestamp . '.' . $data['photo']->extension();
-        $path = $data['photo']->storeAs($directory, $filename, 'public');
-        $photoUrl = "/storage/{$path}";
+        $path = $data['photo']->storeAs($directory, $filename, ['disk' => $disk, 'visibility' => 'public']);
+        $photoUrl = Storage::disk($disk)->url($path);
 
         // Create the photo record with location data
         $photo = DeliveryPhoto::create([
@@ -339,11 +342,13 @@ class DriverAssignmentController extends Controller
             'signature' => ['required', 'file', 'mimes:png,jpg', 'max:5120'], // 5MB max for signature
         ]);
 
-        // Store the signature in storage/app/public/signatures/{assignmentId}/{stopIndex}/{timestamp}.png
+        // Store the signature in signatures/{assignmentId}/{stopIndex}/{timestamp}.png
+        // on the configured delivery disk (local "public" by default, DigitalOcean Spaces in prod).
+        $disk = config('filesystems.delivery_disk');
         $directory = "signatures/{$assignment}/{$stopIndex}";
         $filename = now()->timestamp . '.' . $data['signature']->extension();
-        $path = $data['signature']->storeAs($directory, $filename, 'public');
-        $signatureUrl = "/storage/{$path}";
+        $path = $data['signature']->storeAs($directory, $filename, ['disk' => $disk, 'visibility' => 'public']);
+        $signatureUrl = Storage::disk($disk)->url($path);
 
         // Update the delivery_photo record with the signature URL for this stop
         // Find the most recent photo for this stop (or create one if none exists)
@@ -657,6 +662,54 @@ class DriverAssignmentController extends Controller
     }
 
     /**
+     * Delete a delivery proof (photo and/or signature) — dispatcher web UI.
+     *
+     * DELETE /delivery-proofs/{photo}
+     */
+    public function deleteDeliveryProof(int $photo): JsonResponse
+    {
+        $record = DeliveryPhoto::findOrFail($photo);
+
+        foreach ([$record->photo_url, $record->signature_url] as $url) {
+            $stored = $this->resolveStoredFile($url);
+            if ($stored) {
+                [$disk, $key] = $stored;
+                Storage::disk($disk)->delete($key);
+            }
+        }
+
+        $record->delete();
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Resolve a stored proof URL back to its [disk, key] so the file can be deleted.
+     * Handles both local public-disk URLs (/storage/...) and remote object-storage URLs.
+     */
+    private function resolveStoredFile(?string $url): ?array
+    {
+        if (! $url) {
+            return null;
+        }
+
+        $path = parse_url($url, PHP_URL_PATH) ?? '';
+
+        if (str_starts_with($path, '/storage/')) {
+            return ['public', substr($path, strlen('/storage/'))];
+        }
+
+        foreach (['delivery-photos/', 'signatures/'] as $prefix) {
+            $pos = strpos($path, $prefix);
+            if ($pos !== false) {
+                return [config('filesystems.delivery_disk'), substr($path, $pos)];
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Record driver location during delivery.
      *
      * POST body: { lat: float, lng: float, accuracy?: float, speed?: float, heading?: int, timestamp?: ISO8601 }
@@ -671,19 +724,24 @@ class DriverAssignmentController extends Controller
         $data = $request->validate([
             'lat'       => ['required', 'numeric', 'between:-90,90'],
             'lng'       => ['required', 'numeric', 'between:-180,180'],
-            'accuracy'  => ['nullable', 'numeric', 'min:0'],
-            'speed'     => ['nullable', 'numeric', 'min:0'],
+            // iOS reports -1 for unavailable accuracy/speed — accept it and
+            // null it out below rather than rejecting the whole ping.
+            'accuracy'  => ['nullable', 'numeric'],
+            'speed'     => ['nullable', 'numeric'],
             'heading'   => ['nullable', 'integer', 'between:0,360'],
             'timestamp' => ['nullable', 'date'],
         ]);
+
+        $accuracy = ($data['accuracy'] ?? null) !== null && $data['accuracy'] >= 0 ? $data['accuracy'] : null;
+        $speed = ($data['speed'] ?? null) !== null && $data['speed'] >= 0 ? $data['speed'] : null;
 
         // Store location record
         $location = DriverLocation::create([
             'driver_assignment_id' => $assignment,
             'latitude'             => $data['lat'],
             'longitude'            => $data['lng'],
-            'accuracy'             => $data['accuracy'] ?? null,
-            'speed'                => $data['speed'] ?? null,
+            'accuracy'             => $accuracy,
+            'speed'                => $speed,
             'heading'              => $data['heading'] ?? null,
             'recorded_at'          => $data['timestamp'] ?
                 \Carbon\Carbon::parse($data['timestamp']) : now(),
