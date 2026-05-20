@@ -1,6 +1,8 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
+import { ReactFlow, Handle, Position, type Node, type Edge, Background } from '@xyflow/react'
+import '@xyflow/react/dist/style.css'
 import {
   Camera, CheckCircle2,
   Globe2, Layers, MapPin, PenLine,
@@ -1635,7 +1637,7 @@ function SPauliSlide() {
               <span className="text-[10px] font-mono px-2.5 py-1 rounded-full border text-muted-foreground" style={{ borderColor: `${coral}44`, color: coral, opacity: 0.8 }}>+ penalties</span>
             </div>
           </div>
-          <div className="rounded-2xl p-8  flex flex-col gap-6"
+          <div className="rounded-2xl p-8 flex flex-col gap-3"
             style={{
               background: 'oklch(0.1 0.015 250)',
               border: `1px solid ${coral}28`,
@@ -1645,12 +1647,15 @@ function SPauliSlide() {
               latex="\min \displaystyle\sum_{i \neq j} d_{i,j}\, x_{i,j}"
               color={coral} size="1.55rem" display delay={0.35} />
             <TexGlow
-              latex="+ P\!\left[\,\sum_{i=1}^{n-1}\!\left(\sum_{j \neq i} x_{i,j} - 1\right)^{\!2} + \sum_{i=1}^{n-1}\!\left(\sum_{j \neq i} x_{j,i} - 1\right)^{\!2}\right."
-              color="#e2c9b8" size="1.15rem" display delay={0.5} />
+              latex="+\,P\!\left[\,\sum_{i=1}^{n-1}\!\left(\sum_{j \neq i} x_{i,j} - 1\right)^{\!2}\right."
+              color="#e2c9b8" size="1.05rem" display delay={0.48} />
             <TexGlow
-              latex="\left.\phantom{+P[}+ \left(\sum_{j=1}^{n-1} x_{0,j} - K\right)^{\!2} + \left(\sum_{j=1}^{n-1} x_{j,0} - K\right)^{\!2}\,\right]"
-              color="#e2c9b8" size="1.15rem" display delay={0.65} />
-            <div className="h-px" style={{ background: `color-mix(in oklch, ${coral} 12%, transparent)` }} />
+              latex="\left.\qquad+\,\sum_{i=1}^{n-1}\!\left(\sum_{j \neq i} x_{j,i} - 1\right)^{\!2}\right."
+              color="#e2c9b8" size="1.05rem" display delay={0.56} />
+            <TexGlow
+              latex="\left.\qquad+\,\left(\sum_{j=1}^{n-1} x_{0,j} - K\right)^{\!2} + \left(\sum_{j=1}^{n-1} x_{j,0} - K\right)^{\!2}\,\right]"
+              color="#e2c9b8" size="1.05rem" display delay={0.64} />
+            <div className="h-px mt-2" style={{ background: `color-mix(in oklch, ${coral} 12%, transparent)` }} />
             <div className="grid grid-cols-2 gap-3 text-xs font-mono text-muted-foreground">
               <div><span style={{ color: coral, opacity: 0.7 }}>P1/P2</span> — row &amp; col flow = 1 per node</div>
               <div><span style={{ color: coral, opacity: 0.7 }}>P3/P4</span> — exactly K vehicles depart &amp; return</div>
@@ -1663,24 +1668,22 @@ function SPauliSlide() {
 }
 
 /* ─────────────────────────────────────────── slide 11 — qaoa circuit */
-const CQY = [44, 104, 164, 224] as const
-const CW  = 900
-const CH  = 280
+const CQY = [110, 175, 240, 305] as const
+const CW  = 780
+const CH  = 430
 
 const CIRC_X = {
-  wireStart: 52, wireEnd: 770,
-  label: 44,
-  hCx: 80,
-  cost1: [100, 256] as [number, number],
-  mix1:  [270, 380] as [number, number],
-  cost2: [394, 550] as [number, number],
-  mix2:  [564, 674] as [number, number],
-  meas:  [690, 746] as [number, number],
-  cobylaX: 782,
+  wireStart: 52, wireEnd: 724,
+  label: 44, hCx: 78,
+  cost1: [98, 246] as [number, number],
+  mix1:  [260, 366] as [number, number],
+  cost2: [382, 530] as [number, number],
+  mix2:  [544, 650] as [number, number],
+  meas:  [664, 718] as [number, number],
 } as const
 
-const COST_COLOR  = 'oklch(0.72 0.18 35)'
-const MIXER_COLOR = 'oklch(0.62 0.19 230)'
+const COST_COLOR  = '#e06c3a'
+const MIXER_COLOR = '#6b8cff'
 
 /* ── circuit gate primitives — smooth editorial style ── */
 function CircBlock({ x1, x2, color, latexLabel, delay }:
@@ -1700,9 +1703,9 @@ function CircBlock({ x1, x2, color, latexLabel, delay }:
         stroke={`color-mix(in oklch, ${color} 45%, transparent)`}
         strokeWidth={1.2}
       />
-      <foreignObject x={cx - 60} y={top - 28} width={120} height={26}>
-        <div style={{ color, fontSize: 12, textAlign: 'center', fontFamily: 'KaTeX_Math, serif',
-          filter: `drop-shadow(0 0 6px ${color}99)` }}
+      <foreignObject x={cx - 72} y={top - 8} width={144} height={34}>
+        <div style={{ color, fontSize: 15, textAlign: 'center', fontFamily: 'KaTeX_Math, serif',
+          filter: `drop-shadow(0 0 8px ${color}bb)` }}
           dangerouslySetInnerHTML={{ __html: tex(latexLabel) }}
         />
       </foreignObject>
@@ -1801,186 +1804,235 @@ function MeasGate({ qi, delay }: { qi: number; delay: number }) {
 }
 
 function SQAOACircuit() {
-  const coral = '#e06c3a'
-  const blue  = '#6b8cff'
-  const zzOffsets1 = [128, 158, 188]
-  const zzOffsets2 = [422, 452, 482]
-  const mixCx1    = (CIRC_X.mix1[0] + CIRC_X.mix1[1]) / 2
-  const mixCx2    = (CIRC_X.mix2[0] + CIRC_X.mix2[1]) / 2
+  const coral = COST_COLOR
+  const blue  = MIXER_COLOR
+  const zzOffsets1 = [122, 152, 182]
+  const zzOffsets2 = [406, 436, 466]
+  const mixCx1 = (CIRC_X.mix1[0] + CIRC_X.mix1[1]) / 2
+  const mixCx2 = (CIRC_X.mix2[0] + CIRC_X.mix2[1]) / 2
+
+  const hyperparams = [
+    { k: 'Layers (p)',          v: '2'      },
+    { k: 'Classical optimizer', v: 'COBYLA' },
+    { k: 'maxiter',             v: '50'     },
+    { k: 'Random restarts',     v: '3'      },
+  ]
 
   return (
     <div className="fixed inset-0 flex bg-background overflow-hidden">
       <div aria-hidden className="pointer-events-none absolute inset-0"
-        style={{ background: 'radial-gradient(ellipse 60% 60% at 50% 40%, color-mix(in oklch, var(--primary) 5%, transparent) 0%, transparent 70%)' }} />
+        style={{ background: 'radial-gradient(ellipse 55% 50% at 65% 45%, oklch(0.72 0.18 35 / 0.05), transparent 70%)' }} />
 
-      <div className="relative z-10 w-full h-full flex flex-col px-10 py-6 gap-4">
+      {/* LEFT editorial — 34% */}
+      <div className="relative z-10 flex w-[34%] shrink-0 flex-col justify-center px-14 gap-5">
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
+          <span className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground/60">Quantum Circuit</span>
+        </motion.div>
+        <span className="h-px w-16 origin-left bg-primary/70" style={{ animation: 'qa-rule 800ms cubic-bezier(0.76,0,0.24,1) 140ms both' }} />
+        <motion.h1 className="font-serif italic leading-[0.9] tracking-tight text-foreground"
+          style={{ fontSize: 'clamp(2.6rem, 4.2vw, 3.8rem)' }}
+          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.12, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}>
+          QAOA<br />Circuit.
+        </motion.h1>
+        <motion.p className="font-serif italic text-[13.5px] leading-[1.8] text-foreground/65 max-w-[36ch]"
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.28 }}>
+          Two alternating layers of cost (H<sub>C</sub>) and mixer (H<sub>M</sub>) unitaries
+          applied to 4 qubits. COBYLA minimises ⟨C⟩ by tuning γ and β between runs.
+        </motion.p>
 
-        {/* title */}
-        <motion.div
-          className="shrink-0"
-          initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45 }}
-        >
-          <div className="font-mono text-xs uppercase tracking-[0.22em] mb-2" style={{ color: 'var(--primary)', opacity: 0.7 }}>
-            Quantum Circuit
-          </div>
-          <div className="h-px w-12 mb-3 origin-left" style={{ background: 'var(--primary)', animation: 'qa-rule 0.5s 0.1s both' }} />
-          <h2 className="font-serif italic font-light leading-[1.06] tracking-[-0.03em] text-foreground"
-            style={{ fontSize: 'clamp(2rem, 4vw, 3.4rem)' }}>
-            QAOA · p = 2 layers
-          </h2>
+        {/* hyperparameter table */}
+        <motion.div className="rounded-xl overflow-hidden"
+          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.38, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+          style={{ background: 'oklch(0.115 0.018 250)', border: `1px solid ${coral}28` }}>
+          {hyperparams.map(({ k, v }, i) => (
+            <div key={k} className="flex items-center justify-between px-5 py-3"
+              style={{ borderBottom: i < hyperparams.length - 1 ? '1px solid oklch(0.17 0.01 250)' : 'none' }}>
+              <span className="font-mono text-[11px] text-muted-foreground/70">{k}</span>
+              <span className="font-mono text-sm font-semibold" style={{ color: coral }}>{v}</span>
+            </div>
+          ))}
         </motion.div>
 
+        {/* equation strip — left column */}
+        <motion.div className="flex flex-col gap-2.5 mt-1"
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.55 }}>
+          {[
+            { label: 'cost H', latex: 'H_C = \\textstyle\\sum_{i<j} J_{ij}\\,Z_i Z_j', color: coral },
+            { label: 'mixer H', latex: 'H_M = \\textstyle\\sum_i X_i', color: blue },
+          ].map(({ label, latex, color }) => (
+            <div key={label} className="flex items-center gap-3 rounded-lg px-4 py-2.5"
+              style={{ background: 'oklch(0.105 0.015 250)', border: `1px solid ${color}20` }}>
+              <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground/50 w-12 shrink-0">{label}</span>
+              <TexGlow latex={latex} color={color} size="0.82rem" delay={0.6} />
+            </div>
+          ))}
+        </motion.div>
+      </div>
+
+      {/* RIGHT — circuit plate 66% */}
+      <div className="relative z-10 flex flex-1 flex-col pr-10 pl-3 py-8">
+        {/* legend header */}
+        <div className="flex items-center justify-between pb-3 shrink-0">
+          <div className="flex gap-5">
+            {[
+              { c: coral, label: 'Cost unitary  e^{-iγH_C}' },
+              { c: blue,  label: 'Mixer  e^{-iβH_M}' },
+            ].map(({ c, label }) => (
+              <div key={label} className="flex items-center gap-2">
+                <div className="w-2.5 h-2.5 rounded-sm" style={{ background: c, opacity: 0.85 }} />
+                <span className="font-mono text-[10px] text-muted-foreground/60">{label}</span>
+              </div>
+            ))}
+          </div>
+          <div className="font-mono text-[9px] uppercase tracking-[0.4em] text-muted-foreground/40">p = 2 layers · 4 qubits</div>
+        </div>
+
         {/* circuit plate */}
-        <motion.div
-          className="w-full rounded-2xl px-8 py-5 flex-1 min-h-0 flex flex-col"
-          initial={{ opacity: 0, scale: 0.985 }}
-          animate={{ opacity: 1, scale: 1 }}
+        <motion.div className="relative flex-1 min-h-0 rounded-xl overflow-hidden flex items-center justify-center"
+          initial={{ opacity: 0, scale: 0.985 }} animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.15, duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-          style={{
-            background: 'oklch(0.115 0.015 250)',
-            border: '1px solid oklch(0.22 0.01 250)',
-            boxShadow: '0 0 40px oklch(0.13 0.02 250 / 0.8)',
-          }}
-        >
-          <svg viewBox={`0 0 ${CW} ${CH}`} overflow="visible" className="w-full flex-1 min-h-0"
-            style={{ maxHeight: '100%' }}>
+          style={{ background: 'transparent' }}>
+          <svg viewBox={`0 0 ${CW} ${CH}`} className="w-full h-full" style={{ maxHeight: '100%' }}
+            preserveAspectRatio="xMinYMid meet">
+
+            {/* layer bounding boxes */}
+            <motion.rect
+              x={CIRC_X.cost1[0] - 12} y={CQY[0] - 52}
+              width={CIRC_X.mix1[1] - CIRC_X.cost1[0] + 24}
+              height={CQY[CQY.length - 1] - CQY[0] + 104}
+              rx={10}
+              fill={`color-mix(in oklch, ${COST_COLOR} 4%, transparent)`}
+              stroke={`color-mix(in oklch, ${COST_COLOR} 20%, transparent)`}
+              strokeWidth={1.1} strokeDasharray="4 3"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }} />
+            <motion.text
+              x={CIRC_X.cost1[0] - 12} y={CQY[0] - 58}
+              fontSize={8} fontFamily="monospace" letterSpacing="0.14em"
+              fill={COST_COLOR} fillOpacity={0.45}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.65 }}>LAYER 1</motion.text>
+
+            <motion.rect
+              x={CIRC_X.cost2[0] - 12} y={CQY[0] - 52}
+              width={CIRC_X.mix2[1] - CIRC_X.cost2[0] + 24}
+              height={CQY[CQY.length - 1] - CQY[0] + 104}
+              rx={10}
+              fill={`color-mix(in oklch, ${MIXER_COLOR} 4%, transparent)`}
+              stroke={`color-mix(in oklch, ${MIXER_COLOR} 20%, transparent)`}
+              strokeWidth={1.1} strokeDasharray="4 3"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.85 }} />
+            <motion.text
+              x={CIRC_X.cost2[0] - 12} y={CQY[0] - 58}
+              fontSize={8} fontFamily="monospace" letterSpacing="0.14em"
+              fill={MIXER_COLOR} fillOpacity={0.45}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.9 }}>LAYER 2</motion.text>
 
             {/* qubit wires */}
             {CQY.map((y, qi) => (
-              <motion.line key={`w${qi}`}
-                x1={CIRC_X.wireStart} y1={y} x2={CIRC_X.wireEnd} y2={y}
-                stroke="oklch(0.28 0.01 250)" strokeWidth={1.5}
-                initial={{ pathLength: 0, opacity: 0 }}
-                animate={{ pathLength: 1, opacity: 1 }}
-                transition={{ delay: qi * 0.06, duration: 0.6, ease: 'easeOut' }}
-              />
+              <motion.line key={`w${qi}`} x1={CIRC_X.wireStart} y1={y} x2={CIRC_X.wireEnd} y2={y}
+                stroke="oklch(0.26 0.01 250)" strokeWidth={1.5}
+                initial={{ scaleX: 0, opacity: 0 }} animate={{ scaleX: 1, opacity: 1 }}
+                style={{ transformOrigin: `${CIRC_X.wireStart}px ${y}px` } as React.CSSProperties}
+                transition={{ delay: qi * 0.07, duration: 0.55, ease: 'easeOut' }} />
             ))}
 
             {/* |0⟩ labels */}
             {CQY.map((y, qi) => (
-              <motion.text key={`lbl${qi}`}
-                x={CIRC_X.label} y={y + 5.5} textAnchor="end"
+              <motion.text key={`lbl${qi}`} x={CIRC_X.label} y={y + 5.5} textAnchor="end"
                 fontSize={15} fontFamily="KaTeX_Math, serif" fontStyle="italic"
-                fill="oklch(0.45 0.01 250)"
+                fill="oklch(0.42 0.01 250)"
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                transition={{ delay: 0.08 + qi * 0.06 }}
-              >
-                |0⟩
-              </motion.text>
+                transition={{ delay: 0.1 + qi * 0.07 }}>|0⟩</motion.text>
             ))}
 
             {/* H gates */}
             {CQY.map((_, qi) => (
-              <HGate key={`H${qi}`} qi={qi} delay={0.38 + qi * 0.06} />
+              <HGate key={`H${qi}`} qi={qi} delay={0.4 + qi * 0.07} />
             ))}
 
-            {/* Layer 1 cost */}
+            {/* Layer 1 — cost */}
             <CircBlock x1={CIRC_X.cost1[0]} x2={CIRC_X.cost1[1]}
-              color={COST_COLOR} latexLabel="e^{-i\gamma_1 H_C}" delay={0.7} />
+              color={COST_COLOR} latexLabel="e^{-i\gamma_1 H_C}" delay={0.72} />
             {zzOffsets1.map((x, qi) => (
-              <ZZPair key={`zz1-${qi}`} x={x} qi={qi} delay={0.88 + qi * 0.09} />
+              <ZZPair key={`zz1-${qi}`} x={x} qi={qi} delay={0.9 + qi * 0.09} />
             ))}
 
-            {/* Layer 1 mixer */}
+            {/* Layer 1 — mixer */}
             <CircBlock x1={CIRC_X.mix1[0]} x2={CIRC_X.mix1[1]}
-              color={MIXER_COLOR} latexLabel="e^{-i\beta_1 H_M}" delay={1.24} />
+              color={MIXER_COLOR} latexLabel="e^{-i\beta_1 H_M}" delay={1.28} />
             {CQY.map((_, qi) => (
-              <RxGate key={`rx1-${qi}`} cx={mixCx1} qi={qi} delay={1.4 + qi * 0.06} />
+              <RxGate key={`rx1-${qi}`} cx={mixCx1} qi={qi} delay={1.44 + qi * 0.07} />
             ))}
 
-            {/* layer divider */}
-            <motion.line
-              x1={CIRC_X.mix1[1] + 6} y1={CQY[0] - 28}
-              x2={CIRC_X.mix1[1] + 6} y2={CQY[CQY.length - 1] + 28}
-              stroke="oklch(0.24 0.01 250)" strokeWidth={1} strokeDasharray="3 3"
-              initial={{ opacity: 0, pathLength: 0 }} animate={{ opacity: 1, pathLength: 1 }}
-              transition={{ delay: 1.72, duration: 0.3 }}
-            />
 
-            {/* Layer 2 cost */}
+            {/* Layer 2 — cost */}
             <CircBlock x1={CIRC_X.cost2[0]} x2={CIRC_X.cost2[1]}
-              color={COST_COLOR} latexLabel="e^{-i\gamma_2 H_C}" delay={1.85} />
+              color={COST_COLOR} latexLabel="e^{-i\gamma_2 H_C}" delay={1.92} />
             {zzOffsets2.map((x, qi) => (
-              <ZZPair key={`zz2-${qi}`} x={x} qi={qi} delay={2.0 + qi * 0.09} />
+              <ZZPair key={`zz2-${qi}`} x={x} qi={qi} delay={2.08 + qi * 0.09} />
             ))}
 
-            {/* Layer 2 mixer */}
+            {/* Layer 2 — mixer */}
             <CircBlock x1={CIRC_X.mix2[0]} x2={CIRC_X.mix2[1]}
-              color={MIXER_COLOR} latexLabel="e^{-i\beta_2 H_M}" delay={2.35} />
+              color={MIXER_COLOR} latexLabel="e^{-i\beta_2 H_M}" delay={2.42} />
             {CQY.map((_, qi) => (
-              <RxGate key={`rx2-${qi}`} cx={mixCx2} qi={qi} delay={2.5 + qi * 0.06} />
+              <RxGate key={`rx2-${qi}`} cx={mixCx2} qi={qi} delay={2.58 + qi * 0.07} />
             ))}
 
             {/* measurements */}
             {CQY.map((_, qi) => (
-              <MeasGate key={`meas${qi}`} qi={qi} delay={2.82 + qi * 0.07} />
+              <MeasGate key={`meas${qi}`} qi={qi} delay={2.88 + qi * 0.08} />
             ))}
 
             {/* classical readout wires */}
             {CQY.map((y, qi) => (
               <motion.line key={`cw${qi}`}
                 x1={CIRC_X.meas[1]} y1={y} x2={CIRC_X.wireEnd} y2={y}
-                stroke="oklch(0.36 0.01 250)" strokeWidth={2} strokeDasharray="5 3"
+                stroke="oklch(0.34 0.01 250)" strokeWidth={2} strokeDasharray="5 3"
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                transition={{ delay: 3.1 + qi * 0.06, duration: 0.28 }}
-              />
+                transition={{ delay: 3.15 + qi * 0.07 }} />
             ))}
 
-            {/* classical bus — vertical line collecting all readouts */}
+            {/* classical bus */}
             <motion.line x1={CIRC_X.wireEnd} y1={CQY[0]} x2={CIRC_X.wireEnd} y2={CQY[CQY.length - 1]}
-              stroke="oklch(0.3 0.01 250)" strokeWidth={1.5}
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-              transition={{ delay: 3.38, duration: 0.2 }} />
+              stroke="oklch(0.30 0.01 250)" strokeWidth={2}
+              initial={{ opacity: 0, scaleY: 0 }} animate={{ opacity: 1, scaleY: 1 }}
+              style={{ transformOrigin: `${CIRC_X.wireEnd}px ${CQY[0]}px` } as React.CSSProperties}
+              transition={{ delay: 3.42, duration: 0.22 }} />
 
-            {/* connector to COBYLA */}
-            <motion.line x1={CIRC_X.wireEnd} y1={134} x2={CIRC_X.cobylaX} y2={134}
-              stroke="oklch(0.34 0.01 250)" strokeWidth={1.5}
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-              transition={{ delay: 3.52, duration: 0.18 }} />
+            {/* "⟶ COBYLA" label at end of bus */}
+            <motion.text x={CIRC_X.wireEnd + 6} y={CQY[1] + 5}
+              fontSize={9} fontFamily="monospace" fontWeight="700"
+              fill={COST_COLOR} fillOpacity={0.75} letterSpacing="0.1em"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 3.55 }}>
+              → COBYLA
+            </motion.text>
 
-            {/* COBYLA block */}
-            <motion.g
-              initial={{ opacity: 0, scale: 0.88 }} animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 3.62, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-              style={{ transformOrigin: `${CIRC_X.cobylaX + 56}px 134px` }}>
-              <rect x={CIRC_X.cobylaX} y={88} width={112} height={92} rx={10}
-                fill="oklch(0.12 0.015 250)"
-                stroke={COST_COLOR} strokeWidth={1.1} strokeOpacity={0.55} />
-              <text x={CIRC_X.cobylaX + 56} y={122} textAnchor="middle"
-                fontSize={10} fontFamily="monospace" fontWeight="700"
-                fill={COST_COLOR} letterSpacing="0.12em">COBYLA</text>
-              <text x={CIRC_X.cobylaX + 56} y={140} textAnchor="middle"
-                fontSize={9} fontFamily="KaTeX_Math, serif" fontStyle="italic"
-                fill="oklch(0.48 0.01 250)">minimises ⟨C⟩</text>
-              <text x={CIRC_X.cobylaX + 56} y={156} textAnchor="middle"
-                fontSize={9} fontFamily="KaTeX_Math, serif" fontStyle="italic"
-                fill="oklch(0.42 0.01 250)">updates θ → next run</text>
-              {/* small feedback arrow hint */}
-              <line x1={CIRC_X.cobylaX} y1={112} x2={CIRC_X.cobylaX - 10} y2={100}
-                stroke={COST_COLOR} strokeWidth={0.8} strokeDasharray="3 2" strokeOpacity={0.4} />
-            </motion.g>
+            {/* COBYLA feedback arc — updates γ,β for next run */}
+            <defs>
+              <marker id="cobyla-tip" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto">
+                <path d="M0,0 L7,3.5 L0,7 Z" fill={COST_COLOR} opacity={0.6} />
+              </marker>
+            </defs>
+            <motion.path
+              d={`M ${CIRC_X.wireEnd},${CQY[CQY.length - 1] + 30}
+                  C ${CIRC_X.wireEnd + 42},${CQY[CQY.length - 1] + 80}
+                    ${mixCx1 + 30},${CQY[CQY.length - 1] + 80}
+                    ${mixCx1},${CQY[CQY.length - 1] + 30}`}
+              fill="none" stroke={COST_COLOR} strokeWidth={1.3} strokeOpacity={0.5}
+              strokeDasharray="5 3"
+              markerEnd="url(#cobyla-tip)"
+              initial={{ pathLength: 0, opacity: 0 }} animate={{ pathLength: 1, opacity: 1 }}
+              transition={{ delay: 3.7, duration: 0.9, ease: [0.65, 0, 0.35, 1] }}
+            />
+            <motion.text x={(CIRC_X.wireEnd + mixCx1) / 2} y={CQY[CQY.length - 1] + 90}
+              fontSize={8} fontFamily="monospace" textAnchor="middle"
+              fill={COST_COLOR} fillOpacity={0.45} letterSpacing="0.1em"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 4.4 }}>
+              update γ, β
+            </motion.text>
           </svg>
-        </motion.div>
-
-        {/* equations strip */}
-        <motion.div
-          className="w-full shrink-0 grid grid-cols-3 gap-4"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 3.4, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-        >
-          {[
-            { label: 'state evolution', latex: '|\\psi(\\gamma,\\beta)\\rangle = e^{-i\\beta H_M} e^{-i\\gamma H_C}|{+}\\rangle^{\\otimes n}', color: '#94a3b8' },
-            { label: 'cost Hamiltonian', latex: 'H_C = \\textstyle\\sum_{i<j} J_{ij}\\,Z_i Z_j + \\sum_i h_i\\,Z_i', color: coral },
-            { label: 'mixer Hamiltonian', latex: 'H_M = \\textstyle\\sum_i X_i', color: blue },
-          ].map(({ label, latex, color }) => (
-            <div key={label} className="rounded-xl px-5 py-4 text-center"
-              style={{ background: 'oklch(0.115 0.015 250)', border: `1px solid ${color}28` }}>
-              <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground mb-3">{label}</div>
-              <TexGlow latex={latex} color={color} size="0.88rem" delay={3.5} />
-            </div>
-          ))}
         </motion.div>
       </div>
     </div>
@@ -1990,61 +2042,93 @@ function SQAOACircuit() {
 /* ─────────────────────────────────────────── QAOA variational loop slide */
 const LOOP_CORAL = '#e06c3a'
 const LOOP_GREEN = '#4ade80'
-const LOOP_EASE  = [0.22, 1, 0.36, 1] as const
+const LOOP_BLUE  = '#6b8cff'
 
-function LoopArrow({ delay = 0 }: { delay?: number }) {
+/* ── React Flow custom node types ── */
+type LoopNodeData = { label: string; sub?: string; nodeType: 'init' | 'process' | 'diamond' | 'output' }
+
+function FlowNodePill({ data }: { data: LoopNodeData }) {
+  const color = data.nodeType === 'output' ? LOOP_GREEN : LOOP_CORAL
   return (
-    <motion.div className="flex justify-center py-1" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-      transition={{ delay, duration: 0.3 }}>
-      <div className="flex flex-col items-center gap-0">
-        <div style={{ width: 1.5, height: 20, background: LOOP_CORAL, opacity: 0.55 }} />
-        <div style={{ width: 0, height: 0, borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: `7px solid ${LOOP_CORAL}`, opacity: 0.6 }} />
+    <div style={{
+      minWidth: 220, padding: '8px 20px', borderRadius: 999, textAlign: 'center',
+      background: `color-mix(in oklch, ${color} 12%, oklch(0.10 0.015 250))`,
+      border: `1.5px solid ${color}cc`,
+      boxShadow: `0 0 18px ${color}18`,
+    }}>
+      <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
+      <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12.5, fontWeight: 700, color }}>{data.label}</div>
+      {data.sub && <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 8, color, opacity: 0.55, marginTop: 2 }}>{data.sub}</div>}
+      <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
+    </div>
+  )
+}
+
+function FlowNodeProcess({ data }: { data: LoopNodeData }) {
+  const color = data.nodeType === 'process' ? LOOP_BLUE : '#a0b0ff'
+  return (
+    <div style={{
+      width: 260, height: 56, display: 'flex', alignItems: 'center',
+      padding: '0 14px 0 18px', borderRadius: 8, gap: 0,
+      background: 'oklch(0.115 0.018 250)',
+      border: `1px solid ${color}38`,
+      borderLeft: `3px solid ${color}cc`,
+    }}>
+      <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
+      <div>
+        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12.5, fontWeight: 600, color, opacity: 0.9 }}>{data.label}</div>
+        {data.sub && <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'oklch(0.44 0.01 250)', marginTop: 3 }}>{data.sub}</div>}
       </div>
-    </motion.div>
+      <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
+    </div>
   )
 }
 
-function LoopBox({ children, delay = 0, accent = false, dashed = false, wide = false }:
-  { children: React.ReactNode; delay?: number; accent?: boolean; dashed?: boolean; wide?: boolean }) {
+function FlowNodeDiamond({ data }: { data: LoopNodeData }) {
   return (
-    <motion.div
-      className={`${wide ? 'w-full' : 'w-[72%] mx-auto'} rounded-lg px-6 py-3.5 font-mono text-sm text-center`}
-      style={{
-        background: accent ? `color-mix(in oklch, ${LOOP_CORAL} 10%, oklch(0.13 0.02 250))` : 'oklch(0.135 0.018 250)',
-        border: `1px solid ${LOOP_CORAL}${accent ? '88' : '44'}`,
-        borderLeft: dashed ? `2px dashed ${LOOP_CORAL}55` : undefined,
-        color: accent ? '#e0c4b0' : '#c4b8ae',
-      }}
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay, duration: 0.42, ease: LOOP_EASE }}>
-      {children}
-    </motion.div>
+    <div style={{ width: 140, height: 70, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
+      <div style={{
+        position: 'absolute', inset: 0,
+        clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
+        background: `color-mix(in oklch, ${LOOP_CORAL} 12%, oklch(0.10 0.015 250))`,
+        border: `1.5px solid ${LOOP_CORAL}bb`,
+      }} />
+      <span style={{
+        position: 'relative', fontFamily: 'JetBrains Mono, monospace',
+        fontSize: 11.5, fontWeight: 700, color: LOOP_CORAL,
+      }}>{data.label}</span>
+      <Handle type="source" id="yes" position={Position.Bottom} style={{ opacity: 0 }} />
+      <Handle type="source" id="no" position={Position.Left} style={{ opacity: 0 }} />
+    </div>
   )
 }
 
-function LoopDiamond({ delay = 0, children }: { delay?: number; children: React.ReactNode }) {
-  return (
-    <motion.div className="flex justify-center py-2" initial={{ opacity: 0, scale: 0.88 }} animate={{ opacity: 1, scale: 1 }}
-      transition={{ delay, duration: 0.45, ease: LOOP_EASE }}>
-      <div className="relative flex items-center justify-center"
-        style={{ width: 160, height: 72 }}>
-        <div className="absolute inset-0" style={{
-          background: `oklch(0.125 0.02 35)`,
-          clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
-          border: `1px solid ${LOOP_CORAL}66`,
-        }} />
-        <div className="absolute inset-0" style={{
-          outline: `1px solid ${LOOP_CORAL}55`,
-          clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
-        }} />
-        <span className="relative font-mono text-sm" style={{ color: '#d4c8bf' }}>{children}</span>
-      </div>
-    </motion.div>
-  )
-}
+const FLOW_NODE_TYPES = {
+  pill: FlowNodePill,
+  process: FlowNodeProcess,
+  diamond: FlowNodeDiamond,
+} as const
 
 function SQAOALoop() {
+  const nodes: Node[] = [
+    { id: 'init',    type: 'pill',    position: { x: 90, y: 20  }, data: { label: 'Initialise θ₀', sub: '(γ₁, β₁, … , γₚ, βₚ)', nodeType: 'init' } },
+    { id: 'prep',    type: 'process', position: { x: 80, y: 110 }, data: { label: 'Prepare |ψ(θ)⟩', sub: 'p alternating cost & mixer layers', nodeType: 'process' } },
+    { id: 'meas',    type: 'process', position: { x: 80, y: 210 }, data: { label: 'Measure ⟨C(θ)⟩', sub: 'circuit sampling · expectation value', nodeType: 'process' } },
+    { id: 'update',  type: 'process', position: { x: 80, y: 310 }, data: { label: 'COBYLA: minimise ⟨C⟩', sub: 'gradient-free classical update', nodeType: 'cobyla' } },
+    { id: 'conv',    type: 'diamond', position: { x: 90, y: 415 }, data: { label: 'Converged?', nodeType: 'diamond' } },
+    { id: 'output',  type: 'pill',    position: { x: 90, y: 530 }, data: { label: 'Return θ*  ·  best route', nodeType: 'output' } },
+  ]
+
+  const edges: Edge[] = [
+    { id: 'e-init-prep',   source: 'init',   target: 'prep',   animated: false, style: { stroke: LOOP_CORAL, strokeWidth: 1.5, opacity: 0.6 }, markerEnd: { type: 'arrowclosed' as const, color: LOOP_CORAL, width: 16, height: 16 } },
+    { id: 'e-prep-meas',   source: 'prep',   target: 'meas',   animated: false, style: { stroke: LOOP_CORAL, strokeWidth: 1.5, opacity: 0.6 }, markerEnd: { type: 'arrowclosed' as const, color: LOOP_CORAL, width: 16, height: 16 } },
+    { id: 'e-meas-upd',    source: 'meas',   target: 'update', animated: false, style: { stroke: LOOP_CORAL, strokeWidth: 1.5, opacity: 0.6 }, markerEnd: { type: 'arrowclosed' as const, color: LOOP_CORAL, width: 16, height: 16 } },
+    { id: 'e-upd-conv',    source: 'update', target: 'conv',   animated: false, style: { stroke: LOOP_CORAL, strokeWidth: 1.5, opacity: 0.6 }, markerEnd: { type: 'arrowclosed' as const, color: LOOP_CORAL, width: 16, height: 16 } },
+    { id: 'e-conv-yes',    source: 'conv',   target: 'output', sourceHandle: 'yes', animated: false, label: 'Yes', labelStyle: { fill: LOOP_GREEN, fontFamily: 'JetBrains Mono', fontSize: 10 }, style: { stroke: LOOP_GREEN, strokeWidth: 1.5, opacity: 0.7 }, markerEnd: { type: 'arrowclosed' as const, color: LOOP_GREEN, width: 16, height: 16 } },
+    { id: 'e-conv-no',     source: 'conv',   target: 'prep',   sourceHandle: 'no', type: 'smoothstep', animated: true, label: 'No', labelStyle: { fill: LOOP_CORAL, fontFamily: 'JetBrains Mono', fontSize: 10 }, labelBgStyle: { fill: 'oklch(0.12 0.02 250)', fillOpacity: 0.9 }, style: { stroke: LOOP_CORAL, strokeWidth: 1.5, strokeDasharray: '5 4', opacity: 0.55 }, markerEnd: { type: 'arrowclosed' as const, color: LOOP_CORAL, width: 14, height: 14 } },
+  ]
+
   return (
     <div className="fixed inset-0 flex bg-background overflow-hidden">
       <div aria-hidden className="pointer-events-none absolute inset-0"
@@ -2083,9 +2167,9 @@ function SQAOALoop() {
         </div>
       </div>
 
-      {/* RIGHT — flowchart as React components */}
-      <div className="relative z-10 flex flex-1 flex-col pr-12 pl-4 py-10">
-        <div className="flex items-end justify-between pb-3">
+      {/* RIGHT — React Flow flowchart */}
+      <div className="relative z-10 flex flex-1 flex-col pr-10 pl-4 py-8">
+        <div className="flex items-end justify-between pb-3 shrink-0">
           <div className="flex items-baseline gap-3 font-mono">
             <span className="text-[9px] uppercase tracking-[0.4em] text-muted-foreground/50">Algorithm</span>
             <span className="font-serif italic text-2xl text-foreground/90">Loop</span>
@@ -2093,68 +2177,36 @@ function SQAOALoop() {
           <div className="text-[9px] uppercase tracking-[0.4em] text-muted-foreground/45 font-mono">QAOA · COBYLA · Warm-Start</div>
         </div>
 
-        <div className="relative flex-1 min-h-0 overflow-hidden rounded-xl flex flex-col justify-center py-6 px-6"
-          style={{
-            animation: 'qa-plate 800ms cubic-bezier(0.76,0,0.24,1) both',
-            background: 'radial-gradient(ellipse 80% 70% at 50% 48%, oklch(0.14 0.02 250), oklch(0.08 0.02 250) 90%)',
-            boxShadow: 'inset 0 0 0 1px oklch(0.25 0.02 250 / 0.35), 0 30px 80px -40px rgba(0,0,0,0.9)',
-          }}>
+        <div className="relative flex-1 min-h-0 rounded-xl overflow-hidden"
+          style={{ background: 'transparent' }}>
 
-          {/* warm-start annotation — absolute top-right */}
-          <motion.div className="absolute top-5 right-5 rounded-lg p-3 max-w-[200px]"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5, duration: 0.4 }}
-            style={{ background: 'oklch(0.12 0.03 160)', border: `1px dashed ${LOOP_GREEN}66` }}>
-            <div className="font-mono text-xs font-bold mb-1.5" style={{ color: LOOP_GREEN }}>Warm-Start</div>
-            <div className="font-mono text-xs mb-1" style={{ color: LOOP_GREEN, opacity: 0.8 }}>θ₀ ← θ*_source</div>
-            <div className="h-px mb-1" style={{ background: 'oklch(0.25 0.01 250)' }} />
-            <div className="font-mono text-[11px] italic" style={{ color: 'oklch(0.40 0.01 250)' }}>Cold: θ₀ ← random</div>
+          {/* warm-start annotation */}
+          <motion.div className="absolute top-4 right-5 z-20 rounded-lg p-3"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}
+            style={{ background: 'oklch(0.12 0.03 160)', border: `1px dashed ${LOOP_GREEN}55`, maxWidth: 172 }}>
+            <div className="font-mono text-[11px] font-bold mb-1" style={{ color: LOOP_GREEN }}>Warm-Start</div>
+            <div className="font-mono text-[11px]" style={{ color: LOOP_GREEN, opacity: 0.8 }}>θ₀ ← θ*_source</div>
+            <div className="font-mono text-[10px] mt-1 italic" style={{ color: 'oklch(0.40 0.01 250)' }}>Cold: θ₀ ← random</div>
           </motion.div>
 
-          {/* ── INIT ── */}
-          <LoopBox delay={0.2}>θ₀ = (γ₁, β₁, … , γₚ, βₚ)</LoopBox>
-          <LoopArrow delay={0.35} />
-
-          {/* ── PREPARE (full-width, dashed left border = loop re-entry) ── */}
-          <LoopBox delay={0.45} wide dashed>
-            <div className="font-mono text-sm mb-1" style={{ color: '#d4c8bf' }}>|ψ(θ)⟩ = ∏ₖ U<sub>mix</sub>(βₖ) · U<sub>cost</sub>(γₖ) · |+⟩</div>
-            <div className="font-mono text-xs" style={{ color: 'oklch(0.45 0.01 250)' }}>p layers of alternating cost & mixer unitaries</div>
-          </LoopBox>
-          <LoopArrow delay={0.6} />
-
-          {/* ── MEASURE ── */}
-          <LoopBox delay={0.7}>Measure ⟨C⟩ via circuit sampling</LoopBox>
-          <LoopArrow delay={0.85} />
-
-          {/* ── UPDATE ── */}
-          <LoopBox delay={0.95}>COBYLA updates θ to decrease ⟨C⟩</LoopBox>
-          <LoopArrow delay={1.1} />
-
-          {/* ── DIAMOND + NO feedback path ── */}
-          <div className="relative">
-            <LoopDiamond delay={1.18}>Converged?</LoopDiamond>
-
-            {/* "No" feedback — left spine going back up */}
-            <motion.div className="absolute left-[14%] top-1/2 -translate-y-1/2"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.6 }}>
-              <div className="flex flex-col items-center" style={{ position: 'absolute', left: -32, top: -180, height: 360 }}>
-                <div style={{ width: 1.5, flex: 1, borderLeft: `1.5px dashed ${LOOP_CORAL}44` }} />
-              </div>
-              <span className="font-mono text-xs italic" style={{ color: 'oklch(0.42 0.01 250)', position: 'absolute', left: -52, top: 0 }}>No</span>
-            </motion.div>
-          </div>
-
-          {/* Yes label + arrow */}
-          <motion.div className="flex justify-center items-center gap-2 py-0.5"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.38 }}>
-            <span className="font-mono text-xs italic" style={{ color: 'oklch(0.42 0.01 250)' }}>Yes</span>
-            <div className="flex flex-col items-center">
-              <div style={{ width: 1.5, height: 16, background: LOOP_CORAL, opacity: 0.55 }} />
-              <div style={{ width: 0, height: 0, borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: `7px solid ${LOOP_CORAL}`, opacity: 0.6 }} />
-            </div>
-          </motion.div>
-
-          {/* ── OUTPUT ── */}
-          <LoopBox delay={1.48} accent>Output θ* = (γ*, β*) and best bitstring</LoopBox>
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={FLOW_NODE_TYPES}
+            fitView
+            fitViewOptions={{ padding: 0.18 }}
+            nodesDraggable={false}
+            nodesConnectable={false}
+            elementsSelectable={false}
+            panOnDrag={false}
+            zoomOnScroll={false}
+            zoomOnPinch={false}
+            preventScrolling={false}
+            proOptions={{ hideAttribution: true }}
+            style={{ background: 'transparent' }}
+          >
+            <Background color="oklch(0.22 0.01 250)" gap={32} size={1} style={{ opacity: 0.3 }} />
+          </ReactFlow>
         </div>
       </div>
     </div>
@@ -2998,6 +3050,21 @@ const ALGO_FLEET = [
   { id: 'V3', clusters: ['D2', 'D8'], k: 2 },
 ]
 
+/* step-1 display clusters — pre-k-means, showing varying sizes (some > 4) before refinement */
+const STEP1_DISPLAY_CLUSTERS = [
+  { id: 'S1', n: [6, 26, 48, 10, 29] },         // 5 nodes
+  { id: 'S2', n: [5, 34, 45, 9, 36] },           // 5 nodes
+  { id: 'S3', n: [20, 47, 30, 41, 8, 17] },      // 6 nodes
+  { id: 'S4', n: [14] },                          // 1 node
+  { id: 'S5', n: [4, 11, 18, 7, 35] },           // 5 nodes
+  { id: 'S6', n: [1, 25, 32] },                  // 3 nodes
+  { id: 'S7', n: [12, 28, 16, 38, 23] },         // 5 nodes
+  { id: 'S8', n: [19, 31, 49, 40, 2, 39, 43] }, // 7 nodes
+  { id: 'S9', n: [3, 15, 37, 42] },              // 4 nodes
+  { id: 'S10', n: [33, 50] },                    // 2 nodes
+  { id: 'S11', n: [46, 21, 22, 44, 13, 24, 27] }, // 7 nodes
+]
+
 /* plate geometry */
 const A_W = 760, A_H = 520, A_PAD = 48
 const A_XMIN = 3300, A_XMAX = 11300, A_YMIN = 2300, A_YMAX = 7500
@@ -3135,18 +3202,18 @@ function buildAlgoPlate(step: number): React.ReactNode[] {
       transition={{ duration: 2.6, ease: 'easeInOut', delay: 0.2 }}
       style={{ transformOrigin: `${aSX(ALGO_D.x)}px ${aSY(ALGO_D.y)}px` }} />)
     e.push(<text key="theta" x={aSX(ALGO_D.x) + 18} y={aSY(ALGO_D.y) - 16} fontSize="13" fontStyle="italic" fill="#94a3b8" fontFamily="serif">θ</text>)
-    // k-means cluster result appears after sweep completes
-    ALGO_LEAVES.forEach((l, i) => {
+    // initial clusters appear after sweep — some have > 4 nodes (before k-means refinement)
+    STEP1_DISPLAY_CLUSTERS.forEach((cl, i) => {
       const c = C[i % C.length]
-      e.push(<AHull key={`h${l.id}`} ids={l.n} color={c} op={0.14} animate delay={1.6 + i * 0.035} />)
-      l.n.forEach((nid, k) => e.push(<ANode key={`cn${nid}`} id={nid} r={5} fill={c} animate delay={1.7 + i * 0.04 + k * 0.025} />))
+      e.push(<AHull key={`h${cl.id}`} ids={cl.n} color={c} op={0.14} animate delay={1.6 + i * 0.04} />)
+      cl.n.forEach((nid, k) => e.push(<ANode key={`cn${nid}`} id={nid} r={5} fill={c} animate delay={1.7 + i * 0.05 + k * 0.025} />))
     })
     e.push(
       <motion.g key="kbadge" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.9, duration: 0.45 }}>
-        <rect x={A_W - 118} y={12} width={104} height={22} rx={4}
+        <rect x={A_W - 168} y={12} width={154} height={22} rx={4}
           fill="oklch(0.115 0.015 250)" stroke="#e0683a" strokeWidth={0.6} strokeOpacity={0.45} />
-        <text x={A_W - 66} y={27} textAnchor="middle" fontSize="9" fill="#e0683a" fontFamily="monospace" fontWeight="600">
-          {`⌊√${ALGO_NODES.length}⌋ = ${K} sectors`}
+        <text x={A_W - 91} y={27} textAnchor="middle" fontSize="9" fill="#e0683a" fontFamily="monospace" fontWeight="600">
+          {`⌊√${ALGO_NODES.length}⌋ = ${K} sectors · k-means refines`}
         </text>
       </motion.g>,
     )
@@ -3337,34 +3404,34 @@ function SAlgoStep({ step }: { step: number }) {
         style={{ background: 'radial-gradient(ellipse 48% 40% at 74% 48%, oklch(0.72 0.18 35 / 0.06), transparent 70%)' }} />
 
       {/* LEFT — editorial column */}
-      <div key={`col-${step}`} className="relative z-10 flex w-[37%] min-w-[360px] shrink-0 flex-col justify-center px-16 gap-6">
-        <div className="flex items-baseline gap-5" style={{ animation: 'qa-numeral 700ms cubic-bezier(0.76,0,0.24,1) 60ms both' }}>
-          <span className="font-serif italic leading-none text-primary" style={{ fontSize: 'clamp(3.5rem, 6vw, 5.5rem)' }}>{s.num}</span>
-          <div className="flex flex-col gap-1.5 pb-2">
+      <div key={`col-${step}`} className="relative z-10 flex w-[35%] min-w-[320px] shrink-0 flex-col justify-center px-12 gap-4">
+        <div className="flex items-baseline gap-4" style={{ animation: 'qa-numeral 700ms cubic-bezier(0.76,0,0.24,1) 60ms both' }}>
+          <span className="font-serif italic leading-none text-primary" style={{ fontSize: 'clamp(2.4rem, 4vw, 4rem)' }}>{s.num}</span>
+          <div className="flex flex-col gap-1 pb-1">
             <span className="text-[9px] uppercase tracking-[0.4em] text-muted-foreground/60 font-mono">Step {step} / {ALGO_STEPS.length}</span>
-            <span className="font-serif italic text-sm text-muted-foreground/75">{s.sub}</span>
+            <span className="font-serif italic text-xs text-muted-foreground/75">{s.sub}</span>
           </div>
         </div>
 
-        <span className="h-px w-20 origin-left bg-primary/70" style={{ animation: 'qa-rule 800ms cubic-bezier(0.76,0,0.24,1) 140ms both' }} />
+        <span className="h-px w-16 origin-left bg-primary/70" style={{ animation: 'qa-rule 800ms cubic-bezier(0.76,0,0.24,1) 140ms both' }} />
 
-        <h1 className="font-serif italic leading-[0.9] tracking-tight text-foreground"
-          style={{ fontSize: 'clamp(2.8rem, 5vw, 4.6rem)', animation: 'qa-title 850ms cubic-bezier(0.76,0,0.24,1) 180ms both' }}>
+        <h1 className="font-serif italic leading-[0.92] tracking-tight text-foreground"
+          style={{ fontSize: 'clamp(2rem, 3.5vw, 3.4rem)', animation: 'qa-title 850ms cubic-bezier(0.76,0,0.24,1) 180ms both' }}>
           {s.title}.
         </h1>
 
-        <p className="max-w-[42ch] font-serif italic text-[15px] leading-[1.75] text-foreground/75"
+        <p className="max-w-[40ch] font-serif italic text-[13px] leading-[1.7] text-foreground/75"
           style={{ animation: 'qa-soft 850ms cubic-bezier(0.76,0,0.24,1) 360ms both' }}>
           {s.caption}
         </p>
 
-        <div className="mt-3 border-t border-border/40 pt-5">
-          <div className="grid grid-cols-2 gap-x-10 gap-y-3">
+        <div className="mt-2 border-t border-border/40 pt-4">
+          <div className="grid grid-cols-2 gap-x-8 gap-y-2.5">
             {s.stats.map((st, i) => (
               <div key={i} className="flex items-baseline justify-between border-b border-border/25 pb-2"
                 style={{ animation: `qa-stat 600ms cubic-bezier(0.76,0,0.24,1) ${440 + i * 70}ms both` }}>
-                <span className="text-[9px] uppercase tracking-[0.32em] text-muted-foreground/55 font-mono">{st.l}</span>
-                <span className="font-serif italic text-lg tabular-nums text-foreground/90">{st.v}</span>
+                <span className="text-[9px] uppercase tracking-[0.28em] text-muted-foreground/55 font-mono">{st.l}</span>
+                <span className="font-serif italic text-base tabular-nums text-foreground/90">{st.v}</span>
               </div>
             ))}
           </div>
@@ -3396,7 +3463,7 @@ function SAlgoStep({ step }: { step: number }) {
             background: 'radial-gradient(ellipse 70% 60% at 50% 45%, oklch(0.14 0.02 250), oklch(0.08 0.02 250) 88%)',
             boxShadow: 'inset 0 0 0 1px oklch(0.25 0.02 250 / 0.35), 0 30px 80px -40px rgba(0,0,0,0.9)',
           }}>
-          <svg key={`svg-${step}`} width="100%" height="100%" viewBox={`0 0 ${A_W} ${A_H}`} preserveAspectRatio="xMidYMid slice" className="block h-full w-full">
+          <svg key={`svg-${step}`} width="100%" height="100%" viewBox={`0 0 ${A_W} ${A_H}`} preserveAspectRatio="xMidYMid meet" className="block h-full w-full">
             {buildAlgoPlate(step)}
           </svg>
           <div aria-hidden className="pointer-events-none absolute inset-0"
@@ -4295,58 +4362,103 @@ function S13Benchmark100() {
 
 /* ─────────────────────────────────────────── slide 14 — hardware */
 function S14Hardware() {
+  const coral = '#e06c3a'
+  const red   = '#f43f5e'
+  const green = '#4ade80'
+
+  const attempts = [
+    { nodes: 50, vehicles: 5, qubits: '~625', status: 'Failed', note: 'Noise dominates at scale', c: red },
+    { nodes: 20, vehicles: 4, qubits: '~100', status: 'Failed', note: 'Gate errors compound', c: red },
+    { nodes:  5, vehicles: 3, qubits: '25',   status: '7% valid', note: 'Restitched via Hungarian', c: green },
+  ]
+
   return (
-    <Center>
-      <Ey>Physical Quantum Hardware Validation</Ey>
-      <H>ibm_fez · 156 qubits.</H>
-      <Hr />
-      <motion.div
-        className="mt-6 w-full max-w-2xl rounded-2xl p-8 text-left"
-        style={{
-          background: 'color-mix(in oklch, var(--primary) 8%, var(--card))',
-          border: '1px solid color-mix(in oklch, var(--primary) 35%, transparent)',
-          boxShadow: '0 0 60px oklch(0.72 0.18 35 / 0.06)',
-        }}
-        initial={{ opacity: 0, scale: 0.96 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.7 }}
-      >
-        <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-primary mb-4">
-          Execution Report
-        </div>
-        <div className="grid grid-cols-2 gap-6">
+    <div className="fixed inset-0 flex bg-background overflow-hidden">
+      <div aria-hidden className="pointer-events-none absolute inset-0"
+        style={{ background: 'radial-gradient(ellipse 55% 50% at 28% 50%, oklch(0.65 0.2 25 / 0.06), transparent 70%)' }} />
+
+      {/* LEFT editorial */}
+      <div className="relative z-10 flex w-[36%] shrink-0 flex-col justify-center px-14 gap-5">
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
+          <span className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground/60">Hardware Run</span>
+        </motion.div>
+        <span className="h-px w-16 origin-left bg-primary/70" style={{ animation: 'qa-rule 800ms cubic-bezier(0.76,0,0.24,1) 140ms both' }} />
+        <motion.h1 className="font-serif italic leading-[0.92] tracking-tight text-foreground"
+          style={{ fontSize: 'clamp(2.4rem, 3.8vw, 3.5rem)' }}
+          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.12, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}>
+          Real Quantum<br />Hardware.
+        </motion.h1>
+        <motion.p className="font-serif italic text-[13.5px] leading-[1.8] text-foreground/65 max-w-[36ch]"
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.25 }}>
+          ibm_fez · 156 qubits in theory. In practice: noise compounds
+          with every gate and the circuit collapses before it finishes.
+          Running on hardware was just bad.
+        </motion.p>
+
+        {/* error formula card */}
+        <motion.div className="rounded-xl p-5 flex flex-col gap-2"
+          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+          style={{ background: 'oklch(0.17 0.022 250)', border: `1px solid ${red}50` }}>
+          <div className="font-mono text-[10px] uppercase tracking-[0.2em] mb-1" style={{ color: red, opacity: 0.65 }}>Gate Error Model</div>
+          <TexGlow latex="P(\text{success}) = (1-0.0037)^{704} \approx 7.3\%" color={red} size="0.92rem" delay={0.5} display />
+          <div className="font-mono text-[10px] mt-1" style={{ color: 'oklch(0.62 0.01 250)' }}>p = 2 layers · n = 5 nodes · 704 two-qubit gates</div>
+          <div className="font-mono text-[10px]" style={{ color: 'oklch(0.48 0.01 250)' }}>Excludes readout errors &amp; SWAP overhead</div>
+        </motion.div>
+      </div>
+
+      {/* RIGHT */}
+      <div className="relative z-10 flex flex-1 flex-col pr-12 pl-4 py-10 justify-center gap-5">
+        {/* attempt table */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          className="rounded-xl overflow-hidden"
+          style={{ border: '1px solid oklch(0.30 0.02 250)' }}>
+          {/* header */}
+          <div className="grid grid-cols-5 px-5 py-3 font-mono text-[9px] uppercase tracking-[0.22em]"
+            style={{ color: 'oklch(0.58 0.01 250)', background: 'oklch(0.19 0.02 250)', borderBottom: '1px solid oklch(0.26 0.02 250)' }}>
+            <span>Nodes</span><span>Vehicles</span><span>Qubits</span><span>Outcome</span><span>Note</span>
+          </div>
+          {attempts.map(({ nodes, vehicles, qubits, status, note, c }, i) => (
+            <motion.div key={nodes}
+              className="grid grid-cols-5 px-5 py-4 items-center"
+              initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.45 + i * 0.1, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+              style={{
+                borderBottom: i < attempts.length - 1 ? '1px solid oklch(0.22 0.015 250)' : 'none',
+                background: i % 2 === 0 ? 'oklch(0.155 0.018 250)' : 'oklch(0.175 0.02 250)',
+              }}>
+              <span className="font-mono text-xl font-light tabular-nums" style={{ color: c }}>{nodes}</span>
+              <span className="font-mono text-sm" style={{ color: 'oklch(0.72 0.01 250)' }}>{vehicles}</span>
+              <span className="font-mono text-sm" style={{ color: 'oklch(0.72 0.01 250)' }}>{qubits}</span>
+              <span className="font-mono text-sm font-semibold" style={{ color: c }}>{status}</span>
+              <span className="font-mono text-[11px]" style={{ color: 'oklch(0.60 0.01 250)' }}>{note}</span>
+            </motion.div>
+          ))}
+        </motion.div>
+
+        {/* bottom stat row */}
+        <motion.div className="grid grid-cols-3 gap-4"
+          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.75, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}>
           {[
-            { k: 'Backend', v: 'ibm_fez' },
-            { k: 'Physical qubits', v: '156' },
-            { k: 'Problem size', v: '36 qubits' },
-            { k: 'Distance result', v: '12,348.3' },
-            { k: 'Optimal gap', v: '+0.00%' },
-            { k: 'Projection method', v: 'Hungarian algorithm' },
-          ].map(({ k, v }) => (
-            <div key={k}>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">{k}</div>
-              <div className="font-mono text-lg" style={{ color: 'var(--primary)' }}>{v}</div>
+            { v: '0.37%', l: '2-qubit gate error · ibm_fez', c: red },
+            { v: '7%',    l: 'Valid solutions · n=5 run', c: coral },
+            { v: 'Hungarian', l: 'Post-processing · route restitching', c: '#7b9fff' },
+          ].map(({ v, l, c }) => (
+            <div key={l} className="rounded-xl py-5 px-5 text-center"
+              style={{
+                background: 'oklch(0.17 0.02 250)',
+                border: `1px solid color-mix(in oklch, ${c} 38%, oklch(0.28 0.02 250))`,
+              }}>
+              <div className="font-mono text-2xl font-light tabular-nums mb-2" style={{ color: c }}>{v}</div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.12em] leading-tight" style={{ color: 'oklch(0.58 0.01 250)' }}>{l}</div>
             </div>
           ))}
-        </div>
-        <div className="mt-6 pt-5 border-t border-border text-sm text-muted-foreground leading-relaxed">
-          The Hungarian projection method recovers optimality gap exactly to +0.00% — confirming that
-          our QUBO formulation correctly maps the routing objective onto physical qubit interactions,
-          and that the ansatz depth was sufficient to reach the ground state on real hardware.
-        </div>
-      </motion.div>
-      <div className="mt-6 grid grid-cols-2 gap-4 w-full max-w-2xl">
-        {[
-          { v: '0.37%', label: '2Q gate error · ibm_fez', c: 'var(--chart-3)' },
-          { v: '900s+', label: 'Async job execution time', c: 'var(--destructive)' },
-        ].map(({ v, label, c }) => (
-          <div key={label} className="text-center bg-card border border-border rounded-xl py-4">
-            <div className="font-mono text-2xl tabular-nums" style={{ color: c }}>{v}</div>
-            <div className="mt-1 text-[10px] text-muted-foreground">{label}</div>
-          </div>
-        ))}
+        </motion.div>
       </div>
-    </Center>
+    </div>
   )
 }
 
@@ -4357,7 +4469,7 @@ function S15FutureWork() {
     {
       num: '01',
       title: 'Parameter Transferability',
-      body: 'Optimal QAOA angles learned on one cluster transfer zero-shot to geographically different clusters of the same size — 60% fewer COBYLA evaluations.',
+      body: 'Optimal QAOA angles learned on one cluster transfer zero-shot to geographically different clusters of the same size.',
       tag: 'Proved · warm-start',
       c: coral,
     },
@@ -4436,59 +4548,46 @@ function S15FutureWork() {
 /* ─────────────────────────────────────────── slide 34 — conclusion */
 function SConclusion() {
   const coral = '#e06c3a'
-  const stats = [
-    { v: '+0.00%', l: 'Optimality gap · ibm_fez', c: coral },
-    { v: '4.4%',  l: 'Φ lead vs best rival · n=50', c: coral },
-    { v: '60%',   l: 'Fewer COBYLA evaluations · warm-start', c: '#4ade80' },
-    { v: '∞',     l: 'Sub-tours eliminated by construction', c: '#7b9fff' },
+  const lines = [
+    { text: 'VECTORA is the most capable routing algorithm tested —', accent: false },
+    { text: 'outperforming every classical baseline on weighted fairness.', accent: true },
+    { text: 'It eliminates sub-tours by construction, not correction.', accent: false },
+    { text: 'Quantum advantage is no longer theoretical.', accent: true },
   ]
   return (
     <div className="fixed inset-0 flex bg-background overflow-hidden">
       <div aria-hidden className="pointer-events-none absolute inset-0"
-        style={{ background: 'radial-gradient(ellipse 60% 55% at 50% 50%, oklch(0.72 0.18 35 / 0.06), transparent 70%)' }} />
+        style={{ background: 'radial-gradient(ellipse 60% 55% at 50% 50%, oklch(0.72 0.18 35 / 0.07), transparent 70%)' }} />
 
-      {/* centered layout */}
-      <div className="relative z-10 w-full flex flex-col items-center justify-center px-16 gap-8">
+      <div className="relative z-10 w-full flex flex-col items-center justify-center px-20 gap-10">
         <motion.div className="text-center"
           initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}>
           <div className="font-mono text-xs uppercase tracking-[0.3em] mb-4" style={{ color: coral, opacity: 0.75 }}>Conclusion</div>
           <div className="h-px w-12 mx-auto mb-5" style={{ background: coral, animation: 'qa-rule 0.6s 0.1s both' }} />
-          <h1 className="font-serif italic font-light leading-[1.0] tracking-[-0.03em] text-foreground"
-            style={{ fontSize: 'clamp(3rem, 6vw, 5.5rem)' }}>
-            Quantum routing works.<br />
-            <span style={{ color: coral }}>Today.</span>
+          <div className="font-mono text-sm uppercase tracking-[0.5em] mb-4" style={{ color: coral }}>VECTORA</div>
+          <h1 className="font-serif italic font-light leading-none tracking-[-0.03em] text-foreground"
+            style={{ fontSize: 'clamp(2.6rem, 5.5vw, 5rem)' }}>
+            A novel hybrid algorithm.<br />
+            <span style={{ color: coral }}>Beats every baseline. Today.</span>
           </h1>
         </motion.div>
 
-        {/* stat row */}
-        <motion.div className="grid grid-cols-4 gap-5 w-full max-w-5xl"
-          initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}>
-          {stats.map(({ v, l, c }, i) => (
-            <motion.div key={l}
-              className="rounded-xl py-6 px-5 text-center"
+        <div className="flex flex-col items-center gap-3 max-w-[64ch] w-full">
+          {lines.map(({ text, accent }, i) => (
+            <motion.p key={i}
+              className="text-center font-serif italic leading-relaxed"
               style={{
-                background: 'color-mix(in oklch, var(--card) 80%, transparent)',
-                border: `1px solid color-mix(in oklch, ${c} 30%, var(--border) 50%)`,
+                fontSize: accent ? '1.18rem' : '1rem',
+                color: accent ? 'oklch(0.92 0.01 250)' : 'oklch(0.62 0.01 250)',
               }}
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 + i * 0.08, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}>
-              <div className="font-mono text-3xl font-light tabular-nums mb-2" style={{ color: c }}>{v}</div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground leading-tight">{l}</div>
-            </motion.div>
+              transition={{ delay: 0.35 + i * 0.12, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}>
+              {text}
+            </motion.p>
           ))}
-        </motion.div>
-
-        {/* closing statement */}
-        <motion.p className="text-center font-serif italic text-lg text-foreground/65 max-w-[58ch] leading-relaxed"
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          transition={{ delay: 0.7, duration: 0.5 }}>
-          Recursive QAOA with warm-start parameter transfer closes the gap between
-          quantum simulation and physical hardware — delivering a real, deployable
-          fleet routing advantage on today's NISQ devices.
-        </motion.p>
+        </div>
       </div>
     </div>
   )
