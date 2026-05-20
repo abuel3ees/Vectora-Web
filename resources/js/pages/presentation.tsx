@@ -1333,8 +1333,10 @@ function SAerSimulator() {
                   </motion.div>
                 ))}
               </div>
-              <div className="mt-7 pt-5 border-t border-border font-mono text-sm text-muted-foreground">
-                Errors accumulate multiplicatively — a 10-layer circuit on 5 qubits already sees ~{'>'}5% total infidelity.
+              <div className="mt-7 pt-5 border-t border-border flex flex-col gap-2">
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/55">Gate error model · ibm_fez</div>
+                <TexGlow latex="P(\text{success}) = (1-0.0037)^{704} \approx 7.3\%" color="#f43f5e" size="1.6rem" delay={0.7} display />
+                <div className="font-mono text-[10px] text-muted-foreground/55">p=2 · n=5 nodes · 704 two-qubit gates · excludes readout &amp; SWAP</div>
               </div>
             </Card>
           </motion.div>
@@ -1685,72 +1687,90 @@ const CIRC_X = {
 const COST_COLOR  = '#e06c3a'
 const MIXER_COLOR = '#6b8cff'
 
+/* shared smooth easing — matches the slide's editorial motion language */
+const QA_EASE: [number, number, number, number] = [0.22, 1, 0.36, 1]
+const QA_BACK: [number, number, number, number] = [0.34, 1.42, 0.5, 1]
+
+/* evenly place (n) ZZ couplings within the inner span of a cost block */
+function zzSpread(block: readonly [number, number], n: number, pad = 30): number[] {
+  const lo = block[0] + pad, hi = block[1] - pad
+  return Array.from({ length: n }, (_, i) => (n === 1 ? (lo + hi) / 2 : lo + ((hi - lo) * i) / (n - 1)))
+}
+
 /* ── circuit gate primitives — smooth editorial style ── */
+
+/* color-coded layer band: soft vertical tint with a floating latex label */
 function CircBlock({ x1, x2, color, latexLabel, delay }:
   { x1: number; x2: number; color: string; latexLabel: string; delay: number }) {
-  const top    = CQY[0] - 24
-  const height = CQY[CQY.length - 1] - CQY[0] + 48
+  const top    = CQY[0] - 22
+  const height = CQY[CQY.length - 1] - CQY[0] + 44
   const cx     = (x1 + x2) / 2
+  const gid    = `band-${Math.round(x1)}-${color.replace('#', '')}`
   return (
     <motion.g
-      initial={{ opacity: 0, scale: 0.93 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ delay, duration: 0.48, ease: [0.22, 1, 0.36, 1] }}
-      style={{ transformOrigin: `${cx}px ${top + height / 2}px` }}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay, duration: 0.55, ease: QA_EASE }}
     >
-      <rect x={x1} y={top} width={x2 - x1} height={height} rx={8}
-        fill={`color-mix(in oklch, ${color} 9%, transparent)`}
-        stroke={`color-mix(in oklch, ${color} 45%, transparent)`}
-        strokeWidth={1.2}
-      />
-      <foreignObject x={cx - 72} y={top - 8} width={144} height={34}>
-        <div style={{ color, fontSize: 15, textAlign: 'center', fontFamily: 'KaTeX_Math, serif',
-          filter: `drop-shadow(0 0 8px ${color}bb)` }}
-          dangerouslySetInnerHTML={{ __html: tex(latexLabel) }}
-        />
+      <defs>
+        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor={color} stopOpacity={0} />
+          <stop offset="50%"  stopColor={color} stopOpacity={0.1} />
+          <stop offset="100%" stopColor={color} stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <rect x={x1} y={top} width={x2 - x1} height={height} rx={11}
+        fill={`url(#${gid})`}
+        stroke={`color-mix(in oklch, ${color} 26%, transparent)`}
+        strokeWidth={1} />
+      <foreignObject x={cx - 74} y={top - 11} width={148} height={30}>
+        <div style={{ color, fontSize: 13.5, textAlign: 'center', fontFamily: 'KaTeX_Math, serif',
+          filter: `drop-shadow(0 0 7px ${color}aa)` }}
+          dangerouslySetInnerHTML={{ __html: tex(latexLabel) }} />
       </foreignObject>
     </motion.g>
   )
 }
 
+/* canonical ZZ coupling — two solid dots joined by a drawn vertical line */
 function ZZPair({ x, qi, delay }: { x: number; qi: number; delay: number }) {
-  const y1 = CQY[qi], y2 = CQY[qi + 1], r = 8
+  const y1 = CQY[qi], y2 = CQY[qi + 1], r = 4.5
   return (
     <motion.g
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={{ delay, duration: 0.4, ease: 'easeOut' }}
+      transition={{ delay, duration: 0.3 }}
     >
-      <line x1={x} y1={y1 + r} x2={x} y2={y2 - r}
-        stroke={COST_COLOR} strokeWidth={1.5} strokeOpacity={0.55} />
-      <circle cx={x} cy={y1} r={r}
-        fill={`color-mix(in oklch, ${COST_COLOR} 85%, transparent)`}
-        stroke={COST_COLOR} strokeWidth={1} />
-      <circle cx={x} cy={y2} r={r}
-        fill={`color-mix(in oklch, ${COST_COLOR} 85%, transparent)`}
-        stroke={COST_COLOR} strokeWidth={1} />
-      <text x={x} y={y1 + 3.5} textAnchor="middle" fontSize={6.5}
-        fontFamily="KaTeX_Math, serif" fontStyle="italic" fill="white" opacity={0.95}>ZZ</text>
-      <text x={x} y={y2 + 3.5} textAnchor="middle" fontSize={6.5}
-        fontFamily="KaTeX_Math, serif" fontStyle="italic" fill="white" opacity={0.95}>ZZ</text>
+      <motion.line x1={x} y1={y1} x2={x} y2={y2}
+        stroke={COST_COLOR} strokeWidth={1.6} strokeOpacity={0.7} strokeLinecap="round"
+        initial={{ scaleY: 0 }} animate={{ scaleY: 1 }}
+        style={{ transformOrigin: `${x}px ${y1}px` } as React.CSSProperties}
+        transition={{ delay, duration: 0.42, ease: QA_EASE }} />
+      {[y1, y2].map((cy, i) => (
+        <motion.circle key={i} cx={x} cy={cy} r={r}
+          fill={COST_COLOR}
+          style={{ transformOrigin: `${x}px ${cy}px`, filter: `drop-shadow(0 0 5px ${COST_COLOR}aa)` } as React.CSSProperties}
+          initial={{ scale: 0 }} animate={{ scale: 1 }}
+          transition={{ delay: delay + 0.12 + i * 0.06, duration: 0.4, ease: QA_BACK }} />
+      ))}
     </motion.g>
   )
 }
 
 function RxGate({ cx, qi, delay }: { cx: number; qi: number; delay: number }) {
-  const y = CQY[qi], w = 32, h = 22
+  const y = CQY[qi], w = 34, h = 24
   return (
     <motion.g
-      initial={{ opacity: 0, scale: 0.92 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ delay, duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
+      initial={{ opacity: 0, y: 7, scale: 0.9 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ delay, duration: 0.46, ease: QA_EASE }}
       style={{ transformOrigin: `${cx}px ${y}px` }}
     >
-      <rect x={cx - w / 2} y={y - h / 2} width={w} height={h} rx={4}
-        fill="oklch(0.15 0.01 250)"
-        stroke={`color-mix(in oklch, ${MIXER_COLOR} 55%, transparent)`}
+      <rect x={cx - w / 2} y={y - h / 2} width={w} height={h} rx={6}
+        fill={`color-mix(in oklch, ${MIXER_COLOR} 13%, oklch(0.15 0.012 250))`}
+        stroke={`color-mix(in oklch, ${MIXER_COLOR} 60%, transparent)`}
         strokeWidth={1.2} />
-      <text x={cx} y={y + 4.5} textAnchor="middle" fontSize={10}
+      <text x={cx} y={y + 4.5} textAnchor="middle" fontSize={11}
         fontFamily="KaTeX_Math, serif" fontStyle="italic" fill={MIXER_COLOR}>
         Rₓ
       </text>
@@ -1759,18 +1779,18 @@ function RxGate({ cx, qi, delay }: { cx: number; qi: number; delay: number }) {
 }
 
 function HGate({ qi, delay }: { qi: number; delay: number }) {
-  const cx = CIRC_X.hCx, y = CQY[qi], w = 28, h = 24
+  const cx = CIRC_X.hCx, y = CQY[qi], w = 30, h = 26
   return (
     <motion.g
-      initial={{ opacity: 0, scale: 0.92 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ delay, duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
+      initial={{ opacity: 0, y: 7, scale: 0.9 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ delay, duration: 0.46, ease: QA_EASE }}
       style={{ transformOrigin: `${cx}px ${y}px` }}
     >
-      <rect x={cx - w / 2} y={y - h / 2} width={w} height={h} rx={4}
-        fill="oklch(0.15 0.01 250)" stroke="oklch(0.38 0.01 250)" strokeWidth={1.2} />
+      <rect x={cx - w / 2} y={y - h / 2} width={w} height={h} rx={6}
+        fill="oklch(0.16 0.012 250)" stroke="oklch(0.44 0.015 250)" strokeWidth={1.2} />
       <text x={cx} y={y + 5} textAnchor="middle" fontSize={14}
-        fontFamily="KaTeX_Math, serif" fontWeight="bold" fill="oklch(0.82 0.01 250)">
+        fontFamily="KaTeX_Math, serif" fontWeight="bold" fill="oklch(0.86 0.01 250)">
         H
       </text>
     </motion.g>
@@ -1783,20 +1803,20 @@ function MeasGate({ qi, delay }: { qi: number; delay: number }) {
   const arcR = (w - 14) / 2
   return (
     <motion.g
-      initial={{ opacity: 0, scale: 0.92 }}
+      initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
-      transition={{ delay, duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ delay, duration: 0.42, ease: QA_EASE }}
       style={{ transformOrigin: `${cx}px ${y}px` }}
     >
-      <rect x={x1} y={y - h / 2} width={w} height={h} rx={4}
-        fill="oklch(0.15 0.01 250)" stroke="oklch(0.32 0.01 250)" strokeWidth={1.2} />
+      <rect x={x1} y={y - h / 2} width={w} height={h} rx={6}
+        fill="oklch(0.16 0.012 250)" stroke="oklch(0.34 0.012 250)" strokeWidth={1.2} />
       <path d={`M${x1 + 7},${y + 6} A${arcR},${arcR} 0 0,1 ${x2 - 7},${y + 6}`}
-        fill="none" stroke="oklch(0.48 0.01 250)" strokeWidth={1.2} />
+        fill="none" stroke="oklch(0.5 0.012 250)" strokeWidth={1.2} />
       <motion.line
         x1={cx} y1={y + 6} x2={cx - 2} y2={y - 4}
-        stroke="oklch(0.78 0.01 250)" strokeWidth={1.4} strokeLinecap="round"
+        stroke="oklch(0.8 0.01 250)" strokeWidth={1.4} strokeLinecap="round"
         initial={{ rotate: -45 }} animate={{ rotate: 18 }}
-        transition={{ delay: delay + 0.18, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ delay: delay + 0.18, duration: 0.6, ease: QA_EASE }}
         style={{ transformOrigin: `${cx}px ${y + 6}px` }}
       />
     </motion.g>
@@ -1806,10 +1826,13 @@ function MeasGate({ qi, delay }: { qi: number; delay: number }) {
 function SQAOACircuit() {
   const coral = COST_COLOR
   const blue  = MIXER_COLOR
-  const zzOffsets1 = [122, 152, 182]
-  const zzOffsets2 = [406, 436, 466]
+  const zzOffsets1 = zzSpread(CIRC_X.cost1, 3)
+  const zzOffsets2 = zzSpread(CIRC_X.cost2, 3)
   const mixCx1 = (CIRC_X.mix1[0] + CIRC_X.mix1[1]) / 2
   const mixCx2 = (CIRC_X.mix2[0] + CIRC_X.mix2[1]) / 2
+  const layer1Cx = (CIRC_X.cost1[0] + CIRC_X.mix1[1]) / 2
+  const layer2Cx = (CIRC_X.cost2[0] + CIRC_X.mix2[1]) / 2
+  const wireTop = CQY[0], wireBot = CQY[CQY.length - 1]
 
   const hyperparams = [
     { k: 'Layers (p)',          v: '2'      },
@@ -1897,92 +1920,92 @@ function SQAOACircuit() {
           <svg viewBox={`0 0 ${CW} ${CH}`} className="w-full h-full" style={{ maxHeight: '100%' }}
             preserveAspectRatio="xMinYMid meet">
 
-            {/* layer bounding boxes */}
-            <motion.rect
-              x={CIRC_X.cost1[0] - 12} y={CQY[0] - 52}
-              width={CIRC_X.mix1[1] - CIRC_X.cost1[0] + 24}
-              height={CQY[CQY.length - 1] - CQY[0] + 104}
-              rx={10}
-              fill={`color-mix(in oklch, ${COST_COLOR} 4%, transparent)`}
-              stroke={`color-mix(in oklch, ${COST_COLOR} 20%, transparent)`}
-              strokeWidth={1.1} strokeDasharray="4 3"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }} />
-            <motion.text
-              x={CIRC_X.cost1[0] - 12} y={CQY[0] - 58}
-              fontSize={8} fontFamily="monospace" letterSpacing="0.14em"
-              fill={COST_COLOR} fillOpacity={0.45}
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.65 }}>LAYER 1</motion.text>
+            <defs>
+              {/* soft light column that sweeps the circuit — represents state evolution */}
+              <linearGradient id="qa-pulse" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%"   stopColor={COST_COLOR} stopOpacity={0} />
+                <stop offset="50%"  stopColor={COST_COLOR} stopOpacity={0.5} />
+                <stop offset="100%" stopColor={COST_COLOR} stopOpacity={0} />
+              </linearGradient>
+              <marker id="cobyla-tip" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto">
+                <path d="M0,0 L7,3.5 L0,7 Z" fill={COST_COLOR} opacity={0.6} />
+              </marker>
+            </defs>
 
-            <motion.rect
-              x={CIRC_X.cost2[0] - 12} y={CQY[0] - 52}
-              width={CIRC_X.mix2[1] - CIRC_X.cost2[0] + 24}
-              height={CQY[CQY.length - 1] - CQY[0] + 104}
-              rx={10}
-              fill={`color-mix(in oklch, ${MIXER_COLOR} 4%, transparent)`}
-              stroke={`color-mix(in oklch, ${MIXER_COLOR} 20%, transparent)`}
-              strokeWidth={1.1} strokeDasharray="4 3"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.85 }} />
-            <motion.text
-              x={CIRC_X.cost2[0] - 12} y={CQY[0] - 58}
-              fontSize={8} fontFamily="monospace" letterSpacing="0.14em"
-              fill={MIXER_COLOR} fillOpacity={0.45}
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.9 }}>LAYER 2</motion.text>
+            {/* layer index brackets — show the p = 2 repetition without heavy boxes */}
+            {[
+              { cx: layer1Cx, n: 1, delay: 0.5 },
+              { cx: layer2Cx, n: 2, delay: 1.28 },
+            ].map(({ cx, n, delay }) => (
+              <motion.g key={`lyr${n}`}
+                initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ delay, duration: 0.45, ease: QA_EASE }}>
+                <text x={cx} y={wireTop - 60} textAnchor="middle"
+                  fontSize={8.5} fontFamily="monospace" letterSpacing="0.34em"
+                  fill="oklch(0.5 0.01 250)">LAYER {n}</text>
+                <line x1={cx - 118} y1={wireTop - 52} x2={cx + 118} y2={wireTop - 52}
+                  stroke="oklch(0.3 0.01 250)" strokeWidth={1} />
+                <line x1={cx - 118} y1={wireTop - 52} x2={cx - 118} y2={wireTop - 46}
+                  stroke="oklch(0.3 0.01 250)" strokeWidth={1} />
+                <line x1={cx + 118} y1={wireTop - 52} x2={cx + 118} y2={wireTop - 46}
+                  stroke="oklch(0.3 0.01 250)" strokeWidth={1} />
+              </motion.g>
+            ))}
 
             {/* qubit wires */}
             {CQY.map((y, qi) => (
               <motion.line key={`w${qi}`} x1={CIRC_X.wireStart} y1={y} x2={CIRC_X.wireEnd} y2={y}
-                stroke="oklch(0.26 0.01 250)" strokeWidth={1.5}
+                stroke="oklch(0.27 0.01 250)" strokeWidth={1.5}
                 initial={{ scaleX: 0, opacity: 0 }} animate={{ scaleX: 1, opacity: 1 }}
                 style={{ transformOrigin: `${CIRC_X.wireStart}px ${y}px` } as React.CSSProperties}
-                transition={{ delay: qi * 0.07, duration: 0.55, ease: 'easeOut' }} />
+                transition={{ delay: qi * 0.06, duration: 0.6, ease: QA_EASE }} />
             ))}
 
             {/* |0⟩ labels */}
             {CQY.map((y, qi) => (
               <motion.text key={`lbl${qi}`} x={CIRC_X.label} y={y + 5.5} textAnchor="end"
                 fontSize={15} fontFamily="KaTeX_Math, serif" fontStyle="italic"
-                fill="oklch(0.42 0.01 250)"
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                transition={{ delay: 0.1 + qi * 0.07 }}>|0⟩</motion.text>
+                fill="oklch(0.46 0.01 250)"
+                initial={{ opacity: 0, x: -4 }} animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.12 + qi * 0.06, duration: 0.4, ease: QA_EASE }}>|0⟩</motion.text>
             ))}
 
             {/* H gates */}
             {CQY.map((_, qi) => (
-              <HGate key={`H${qi}`} qi={qi} delay={0.4 + qi * 0.07} />
+              <HGate key={`H${qi}`} qi={qi} delay={0.32 + qi * 0.06} />
             ))}
 
             {/* Layer 1 — cost */}
             <CircBlock x1={CIRC_X.cost1[0]} x2={CIRC_X.cost1[1]}
-              color={COST_COLOR} latexLabel="e^{-i\gamma_1 H_C}" delay={0.72} />
+              color={COST_COLOR} latexLabel="e^{-i\gamma_1 H_C}" delay={0.6} />
             {zzOffsets1.map((x, qi) => (
-              <ZZPair key={`zz1-${qi}`} x={x} qi={qi} delay={0.9 + qi * 0.09} />
+              <ZZPair key={`zz1-${qi}`} x={x} qi={qi} delay={0.74 + qi * 0.08} />
             ))}
 
             {/* Layer 1 — mixer */}
             <CircBlock x1={CIRC_X.mix1[0]} x2={CIRC_X.mix1[1]}
-              color={MIXER_COLOR} latexLabel="e^{-i\beta_1 H_M}" delay={1.28} />
+              color={MIXER_COLOR} latexLabel="e^{-i\beta_1 H_M}" delay={0.98} />
             {CQY.map((_, qi) => (
-              <RxGate key={`rx1-${qi}`} cx={mixCx1} qi={qi} delay={1.44 + qi * 0.07} />
+              <RxGate key={`rx1-${qi}`} cx={mixCx1} qi={qi} delay={1.1 + qi * 0.05} />
             ))}
-
 
             {/* Layer 2 — cost */}
             <CircBlock x1={CIRC_X.cost2[0]} x2={CIRC_X.cost2[1]}
-              color={COST_COLOR} latexLabel="e^{-i\gamma_2 H_C}" delay={1.92} />
+              color={COST_COLOR} latexLabel="e^{-i\gamma_2 H_C}" delay={1.35} />
             {zzOffsets2.map((x, qi) => (
-              <ZZPair key={`zz2-${qi}`} x={x} qi={qi} delay={2.08 + qi * 0.09} />
+              <ZZPair key={`zz2-${qi}`} x={x} qi={qi} delay={1.49 + qi * 0.08} />
             ))}
 
             {/* Layer 2 — mixer */}
             <CircBlock x1={CIRC_X.mix2[0]} x2={CIRC_X.mix2[1]}
-              color={MIXER_COLOR} latexLabel="e^{-i\beta_2 H_M}" delay={2.42} />
+              color={MIXER_COLOR} latexLabel="e^{-i\beta_2 H_M}" delay={1.72} />
             {CQY.map((_, qi) => (
-              <RxGate key={`rx2-${qi}`} cx={mixCx2} qi={qi} delay={2.58 + qi * 0.07} />
+              <RxGate key={`rx2-${qi}`} cx={mixCx2} qi={qi} delay={1.84 + qi * 0.05} />
             ))}
 
             {/* measurements */}
             {CQY.map((_, qi) => (
-              <MeasGate key={`meas${qi}`} qi={qi} delay={2.88 + qi * 0.08} />
+              <MeasGate key={`meas${qi}`} qi={qi} delay={2.1 + qi * 0.06} />
             ))}
 
             {/* classical readout wires */}
@@ -1990,48 +2013,55 @@ function SQAOACircuit() {
               <motion.line key={`cw${qi}`}
                 x1={CIRC_X.meas[1]} y1={y} x2={CIRC_X.wireEnd} y2={y}
                 stroke="oklch(0.34 0.01 250)" strokeWidth={2} strokeDasharray="5 3"
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                transition={{ delay: 3.15 + qi * 0.07 }} />
+                initial={{ opacity: 0, scaleX: 0 }} animate={{ opacity: 1, scaleX: 1 }}
+                style={{ transformOrigin: `${CIRC_X.meas[1]}px ${y}px` } as React.CSSProperties}
+                transition={{ delay: 2.32 + qi * 0.05, duration: 0.4, ease: QA_EASE }} />
             ))}
 
             {/* classical bus */}
-            <motion.line x1={CIRC_X.wireEnd} y1={CQY[0]} x2={CIRC_X.wireEnd} y2={CQY[CQY.length - 1]}
-              stroke="oklch(0.30 0.01 250)" strokeWidth={2}
+            <motion.line x1={CIRC_X.wireEnd} y1={wireTop} x2={CIRC_X.wireEnd} y2={wireBot}
+              stroke="oklch(0.32 0.01 250)" strokeWidth={2}
               initial={{ opacity: 0, scaleY: 0 }} animate={{ opacity: 1, scaleY: 1 }}
-              style={{ transformOrigin: `${CIRC_X.wireEnd}px ${CQY[0]}px` } as React.CSSProperties}
-              transition={{ delay: 3.42, duration: 0.22 }} />
+              style={{ transformOrigin: `${CIRC_X.wireEnd}px ${wireTop}px` } as React.CSSProperties}
+              transition={{ delay: 2.48, duration: 0.32, ease: QA_EASE }} />
 
             {/* "⟶ COBYLA" label at end of bus */}
             <motion.text x={CIRC_X.wireEnd + 6} y={CQY[1] + 5}
               fontSize={9} fontFamily="monospace" fontWeight="700"
               fill={COST_COLOR} fillOpacity={0.75} letterSpacing="0.1em"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 3.55 }}>
+              initial={{ opacity: 0, x: -4 }} animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 2.6, duration: 0.4, ease: QA_EASE }}>
               → COBYLA
             </motion.text>
 
             {/* COBYLA feedback arc — updates γ,β for next run */}
-            <defs>
-              <marker id="cobyla-tip" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto">
-                <path d="M0,0 L7,3.5 L0,7 Z" fill={COST_COLOR} opacity={0.6} />
-              </marker>
-            </defs>
             <motion.path
-              d={`M ${CIRC_X.wireEnd},${CQY[CQY.length - 1] + 30}
-                  C ${CIRC_X.wireEnd + 42},${CQY[CQY.length - 1] + 80}
-                    ${mixCx1 + 30},${CQY[CQY.length - 1] + 80}
-                    ${mixCx1},${CQY[CQY.length - 1] + 30}`}
+              d={`M ${CIRC_X.wireEnd},${wireBot + 30}
+                  C ${CIRC_X.wireEnd + 42},${wireBot + 80}
+                    ${mixCx1 + 30},${wireBot + 80}
+                    ${mixCx1},${wireBot + 30}`}
               fill="none" stroke={COST_COLOR} strokeWidth={1.3} strokeOpacity={0.5}
               strokeDasharray="5 3"
               markerEnd="url(#cobyla-tip)"
               initial={{ pathLength: 0, opacity: 0 }} animate={{ pathLength: 1, opacity: 1 }}
-              transition={{ delay: 3.7, duration: 0.9, ease: [0.65, 0, 0.35, 1] }}
+              transition={{ delay: 2.7, duration: 0.9, ease: [0.65, 0, 0.35, 1] }}
             />
-            <motion.text x={(CIRC_X.wireEnd + mixCx1) / 2} y={CQY[CQY.length - 1] + 90}
+            <motion.text x={(CIRC_X.wireEnd + mixCx1) / 2} y={wireBot + 90}
               fontSize={8} fontFamily="monospace" textAnchor="middle"
               fill={COST_COLOR} fillOpacity={0.45} letterSpacing="0.1em"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 4.4 }}>
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 3.4, duration: 0.5 }}>
               update γ, β
             </motion.text>
+
+            {/* perpetual wavefront — soft light sweeps the gate region */}
+            <motion.rect
+              x={0} y={wireTop - 30} width={30} height={wireBot - wireTop + 60}
+              fill="url(#qa-pulse)"
+              initial={{ opacity: 0 }}
+              animate={{ x: [CIRC_X.wireStart - 15, CIRC_X.meas[1] - 15], opacity: [0, 0.85, 0.85, 0] }}
+              transition={{ delay: 3.5, duration: 2.2, repeat: Infinity, repeatDelay: 1.6, ease: 'easeInOut' }}
+              style={{ filter: 'blur(1.5px)' }}
+            />
           </svg>
         </motion.div>
       </div>
