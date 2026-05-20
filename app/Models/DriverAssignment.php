@@ -16,6 +16,12 @@ class DriverAssignment extends Model
     ];
 
     protected $casts = [
+        // Cast integer columns explicitly: MySQL/Postgres (production) return
+        // them as strings via PDO, which breaks strict (===) ownership checks
+        // like `$model->driver_id === $request->user()->id`. SQLite (local)
+        // returns ints, so this only surfaced in production.
+        'driver_id'     => 'integer',
+        'vehicle_index' => 'integer',
         'stops'         => 'array',
         'stop_statuses' => 'array',
         'geometry'      => 'array',
